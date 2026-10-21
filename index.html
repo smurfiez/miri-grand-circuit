@@ -1,1727 +1,300 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Miri Grand Circuit // Realistic Scale Cel-Shaded Auto-Racer</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
-    body { overflow: hidden; background: #14081c; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
-    
-    /* Speed Lines Canvas */
-    #speed-lines {
-      position: absolute; inset: 0; width: 100vw; height: 100vh;
-      pointer-events: none; z-index: 4; opacity: 0; transition: opacity 0.25s ease;
-    }
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Miri Grab Delivery Rush // Cel-Shaded Endless Delivery Rider</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Barlow+Condensed:wght@600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --ink: #14161a;
+    --grab: #00b14f;
+    --teal: #00d084;
+    --pink: #ff4d8d;
+    --gold: #ffd23f;
+    --panel: rgba(12, 14, 24, 0.9);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #1a0f14; }
+  body { font-family: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif; }
+  canvas { display: block; }
 
-    /* Broadcast HUD */
-    #hud-top-left {
-      position: absolute; top: 18px; left: 20px; z-index: 10; color: #fff;
-      text-shadow: 3px 3px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
-      pointer-events: none;
-    }
-    .live-pill {
-      display: inline-flex; align-items: center; gap: 7px;
-      background: #e63946; color: #fff; font-weight: 900; font-size: 12px;
-      padding: 4px 11px; border: 3px solid #000; box-shadow: 4px 4px 0 #000;
-      transform: skewX(-12deg); letter-spacing: 1.2px; margin-bottom: 6px;
-    }
-    .dot { width: 8px; height: 8px; background: #fff; border-radius: 50%; animation: blink 1s infinite; }
-    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
-    
-    h1 {
-      font-size: 30px; font-weight: 900; font-style: italic; letter-spacing: 1px;
-      color: #ffd166; text-transform: uppercase; line-height: 1.05;
-    }
-    #road-name {
-      font-size: 17px; font-weight: 900; color: #4cc9f0; margin-top: 3px;
-      letter-spacing: 0.6px; text-transform: uppercase;
-    }
-    #landmark-sub {
-      font-size: 13px; font-weight: 800; color: #f8f9fa; opacity: 0.9; margin-top: 2px;
-    }
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; color: #fff; }
 
-    /* Leaderboard */
-    #leaderboard {
-      margin-top: 12px; background: rgba(12, 14, 24, 0.88);
-      border: 3px solid #000; box-shadow: 5px 5px 0 #000;
-      padding: 10px 12px; width: 295px; transform: skewX(-4deg);
-    }
-    .lb-title {
-      font-size: 11px; font-weight: 900; color: #adb5bd; letter-spacing: 1.5px;
-      border-bottom: 2px solid #2b2d42; padding-bottom: 4px; margin-bottom: 6px;
-      display: flex; justify-content: space-between;
-    }
-    .lb-row {
-      display: flex; justify-content: space-between; align-items: center;
-      font-weight: 800; font-size: 13px; padding: 4px 6px; margin-bottom: 2px;
-      border-left: 4px solid transparent;
-    }
-    .lb-row.active {
-      background: rgba(255, 209, 102, 0.18);
-      border-left-color: #ffd166; color: #ffd166;
-    }
-    .car-tag { display: inline-flex; align-items: center; gap: 6px; }
-    .swatch { width: 10px; height: 10px; border: 1.5px solid #000; display: inline-block; }
+  /* ---------- top-left identity ---------- */
+  #id-box { position: absolute; top: 16px; left: 20px; transform: skewX(-4deg); }
+  .live-pill {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: #e63946; border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--ink);
+    padding: 3px 12px; font-weight: 800; font-size: 12px; letter-spacing: 1.4px;
+  }
+  .dot { width: 8px; height: 8px; background: #fff; border-radius: 50%; animation: blink 1s infinite; }
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.15; } }
+  #game-title {
+    margin-top: 8px; font-family: 'Archivo Black', sans-serif;
+    font-size: 26px; line-height: 1; text-transform: uppercase; font-style: italic;
+    color: var(--gold); text-shadow: 3px 3px 0 var(--ink);
+  }
+  #game-title span { color: var(--teal); }
+  #hud-landmark {
+    margin-top: 6px; font-weight: 800; font-size: 16px; letter-spacing: 1px;
+    color: #fff; text-shadow: 2px 2px 0 var(--ink); text-transform: uppercase;
+  }
 
-    /* Minimap top-right */
-    #minimap-box {
-      position: absolute; top: 18px; right: 20px; z-index: 10;
-      background: rgba(12, 14, 24, 0.88); border: 3px solid #000;
-      box-shadow: 5px 5px 0 #000; padding: 8px; width: 210px; height: 210px;
-    }
-    #minimap-label {
-      position: absolute; bottom: 6px; left: 10px; color: #ffd166;
-      font-size: 10px; font-weight: 900; letter-spacing: 1px;
-      text-shadow: 1px 1px 0 #000;
-    }
+  /* ---------- control buttons ---------- */
+  #btn-box { position: absolute; top: 16px; right: 20px; display: flex; gap: 8px; pointer-events: auto; }
+  .hud-btn {
+    background: #fff; color: var(--ink); border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--ink);
+    font-family: 'Archivo Black', sans-serif; font-size: 11px; letter-spacing: 1px;
+    padding: 7px 12px; cursor: pointer; transform: skewX(-8deg); transition: transform 0.08s;
+  }
+  .hud-btn:hover { transform: skewX(-8deg) translate(-1px, -1px); }
+  .hud-btn:active { transform: skewX(-8deg) translate(2px, 2px); box-shadow: 2px 2px 0 var(--ink); }
+  .hud-btn.on { background: var(--grab); color: #fff; }
+  .hud-btn.warn.on { background: #3a86ff; }
 
-    /* Telemetry Bottom Right */
-    #telemetry {
-      position: absolute; bottom: 20px; right: 24px; z-index: 10;
-      text-align: right; color: #fff; pointer-events: none;
-      text-shadow: 3px 3px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000;
-    }
-    #manual-pill {
-      display: inline-block; background: #ffd166; color: #000;
-      font-weight: 900; font-style: italic; font-size: 13px;
-      padding: 3px 10px; border: 2px solid #000; box-shadow: 3px 3px 0 #000;
-      transform: skewX(-12deg); margin-bottom: 6px; opacity: 0; transition: opacity 0.15s;
-    }
-    #drift-pill {
-      display: inline-block; background: #ff006e; color: #fff;
-      font-weight: 900; font-style: italic; font-size: 14px;
-      padding: 3px 10px; border: 2px solid #000; box-shadow: 3px 3px 0 #000;
-      transform: skewX(-12deg); margin-bottom: 6px; opacity: 0; transition: opacity 0.15s;
-    }
-    .speed-row { display: flex; align-items: baseline; justify-content: flex-end; gap: 10px; }
-    #gear-box {
-      background: #ffd166; color: #000; font-weight: 900; font-size: 26px;
-      padding: 2px 10px; border: 3px solid #000; box-shadow: 3px 3px 0 #000;
-      transform: skewX(-10deg); text-shadow: none;
-    }
-    #speed-val { font-size: 62px; font-weight: 900; font-style: italic; color: #ff9f1c; line-height: 0.95; }
-    #speed-unit { font-size: 14px; font-weight: 900; letter-spacing: 2px; color: #f8f9fa; }
-    #rpm-bar-bg {
-      width: 210px; height: 12px; background: #1b1d2a; border: 2.5px solid #000;
-      box-shadow: 3px 3px 0 #000; margin-top: 6px; margin-left: auto; overflow: hidden;
-    }
-    #rpm-bar-fill {
-      height: 100%; width: 70%;
-      background: linear-gradient(90deg, #06d6a0 0%, #ffd166 65%, #ef233c 100%);
-    }
+  /* ---------- minimap ---------- */
+  #minimap-box {
+    position: absolute; top: 62px; right: 20px;
+    background: var(--panel); border: 3px solid var(--ink);
+    box-shadow: 5px 5px 0 var(--ink); padding: 7px 7px 5px;
+    transform: skewX(-4deg);
+  }
+  #minimap {
+    display: block; width: 168px; height: 168px;
+    background: #0b0e16; border: 2px solid #2b2d42;
+  }
+  #minimap-tag {
+    margin-top: 4px; text-align: center;
+    font-family: 'Archivo Black', sans-serif; font-size: 9px; letter-spacing: 2px; color: #8891a8;
+  }
 
-    /* Controls Bottom Left */
-    #controls {
-      position: absolute; bottom: 20px; left: 20px; z-index: 10;
-      display: flex; flex-wrap: wrap; gap: 10px;
-    }
-    button {
-      background: #ffd166; color: #000; font-weight: 900; font-size: 13px;
-      padding: 10px 14px; border: 3px solid #000; box-shadow: 4px 4px 0 #000;
-      cursor: pointer; transform: skewX(-10deg); text-transform: uppercase;
-      transition: transform 0.08s, background 0.15s;
-    }
-    button:hover { background: #ffe08a; }
-    button:active { transform: skewX(-10deg) translate(2px, 2px); box-shadow: 2px 2px 0 #000; }
-    button.secondary { background: #4cc9f0; }
-  </style>
+  /* ---------- order board ---------- */
+  #order-board {
+    position: absolute; left: 20px; top: 150px; width: 300px;
+    background: var(--panel); border: 3px solid var(--ink); box-shadow: 5px 5px 0 var(--ink);
+    transform: skewX(-4deg); padding: 10px 12px;
+  }
+  #order-board h3 {
+    font-family: 'Archivo Black', sans-serif; font-size: 12px; letter-spacing: 2px;
+    color: var(--teal); border-bottom: 2px solid #2b2d42; padding-bottom: 4px; margin-bottom: 8px;
+    display: flex; justify-content: space-between;
+  }
+  #order-list { display: flex; flex-direction: column; gap: 7px; }
+  .order-card { background: #171a26; border: 2px solid #2b2d42; border-left: 5px solid var(--grab); padding: 6px 9px; }
+  .order-card.dropoff { border-left-color: var(--gold); }
+  .order-food { font-weight: 800; font-size: 15px; color: #fff; }
+  .order-route { font-size: 12.5px; font-weight: 600; color: #aab; letter-spacing: 0.4px; }
+  .order-meta { display: flex; justify-content: space-between; font-size: 12px; font-weight: 800; margin-top: 2px; }
+  .order-rm { color: var(--teal); }
+  .order-phase { color: var(--gold); letter-spacing: 1px; }
+  .order-bar { height: 4px; background: #2b2d42; margin-top: 5px; }
+  .order-bar i { display: block; height: 100%; background: var(--pink); }
+  #no-orders { font-size: 13px; color: #778; font-weight: 600; padding: 4px 0; }
+
+  /* ---------- lower third ---------- */
+  #lower-third { position: absolute; left: 20px; bottom: 84px; display: flex; flex-direction: column; gap: 6px; }
+  #cam-chip {
+    display: inline-block; width: fit-content;
+    background: var(--pink); border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--ink);
+    transform: skewX(-10deg); padding: 4px 14px;
+    font-family: 'Archivo Black', sans-serif; font-size: 14px; letter-spacing: 1.5px;
+  }
+  #auto-chip {
+    display: inline-block; width: fit-content;
+    background: var(--grab); color: #05230f; border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--ink);
+    transform: skewX(-10deg); padding: 4px 12px;
+    font-family: 'Archivo Black', sans-serif; font-size: 12px; letter-spacing: 1.5px;
+  }
+  #auto-chip.manual { background: var(--gold); }
+  #telemetry {
+    display: flex; gap: 8px; transform: skewX(-4deg);
+  }
+  .tele-card {
+    background: var(--panel); border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--ink);
+    padding: 4px 12px; min-width: 86px;
+  }
+  .tele-label { font-size: 9px; font-weight: 800; letter-spacing: 1.6px; color: #8891a8; }
+  .tele-val { font-size: 16px; font-weight: 800; color: var(--gold); font-variant-numeric: tabular-nums; }
+  .tele-val.green { color: var(--teal); }
+
+  /* ---------- speedo + wallet ---------- */
+  #wallet-box { position: absolute; right: 20px; bottom: 84px; text-align: right; }
+  #speedo {
+    background: var(--panel); border: 3px solid var(--ink); box-shadow: 5px 5px 0 var(--ink);
+    transform: skewX(-6deg); padding: 8px 18px 6px; display: inline-block;
+  }
+  #speedo .kmh { font-family: 'Archivo Black', sans-serif; font-size: 46px; line-height: 1; color: #fff; }
+  #speedo .unit { font-size: 13px; font-weight: 800; letter-spacing: 2px; color: #8891a8; }
+  #rm-card {
+    margin-top: 8px; background: var(--grab); border: 3px solid var(--ink); box-shadow: 5px 5px 0 var(--ink);
+    transform: skewX(-6deg); padding: 6px 16px; display: inline-block;
+  }
+  #rm-val { font-family: 'Archivo Black', sans-serif; font-size: 28px; color: #fff; }
+  #rm-val.bump { animation: bump 0.4s; }
+  @keyframes bump { 30% { transform: scale(1.22); color: var(--gold); } }
+  #deliv-count { margin-top: 6px; font-weight: 800; font-size: 13px; letter-spacing: 1px; color: #fff; text-shadow: 2px 2px 0 var(--ink); }
+
+  /* ---------- ticker ---------- */
+  #ticker {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 42px;
+    background: var(--ink); border-top: 3px solid #000; overflow: hidden;
+    display: flex; align-items: center;
+  }
+  #ticker-tag {
+    flex: 0 0 auto; height: 100%; display: flex; align-items: center;
+    background: var(--gold); color: var(--ink); border-right: 3px solid #000;
+    font-family: 'Archivo Black', sans-serif; font-size: 13px; letter-spacing: 1px;
+    padding: 0 16px; z-index: 2;
+  }
+  #ticker-viewport { overflow: hidden; flex: 1; }
+  #ticker-track {
+    display: inline-block; white-space: nowrap; padding-left: 100%;
+    animation: marquee 30s linear infinite;
+    font-weight: 700; font-size: 16px; letter-spacing: 1px; color: #ffe9a8;
+  }
+  @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-200%); } }
+
+  /* ---------- popups ---------- */
+  #popups { position: absolute; top: 90px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; align-items: center; }
+  .pop {
+    min-width: 340px; background: #fff; color: var(--ink);
+    border: 3px solid var(--ink); box-shadow: 6px 6px 0 var(--ink);
+    padding: 8px 18px; text-align: center; transform: skewX(-5deg);
+    animation: popIn 0.35s cubic-bezier(0.2, 1.6, 0.4, 1);
+  }
+  .pop.out { animation: popOut 0.4s forwards; }
+  @keyframes popIn { from { transform: skewX(-5deg) translateY(-30px) scale(0.8); opacity: 0; } }
+  @keyframes popOut { to { transform: skewX(-5deg) translateY(-16px) scale(0.9); opacity: 0; } }
+  .pop .pop-title { font-family: 'Archivo Black', sans-serif; font-size: 15px; letter-spacing: 1px; }
+  .pop .pop-body { font-weight: 700; font-size: 14px; margin-top: 2px; }
+  .pop.new { background: var(--grab); color: #fff; }
+  .pop.gold { background: var(--gold); }
+  .pop.bad { background: var(--pink); color: #fff; }
+
+  /* ---------- start overlay ---------- */
+  #start-overlay {
+    position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(circle at 50% 35%, rgba(0, 177, 79, 0.16), rgba(10, 10, 16, 0.88));
+    backdrop-filter: blur(3px);
+  }
+  #start-card {
+    width: min(620px, 92vw); background: #fff; color: var(--ink);
+    border: 4px solid var(--ink); box-shadow: 10px 10px 0 var(--ink);
+    padding: 28px 34px 26px; text-align: center; transform: rotate(-1deg);
+  }
+  #start-card h1 {
+    font-family: 'Archivo Black', sans-serif; font-size: clamp(28px, 4.6vw, 42px);
+    text-transform: uppercase; font-style: italic; line-height: 1.02;
+  }
+  #start-card h1 .g { color: var(--grab); }
+  #start-card h1 .p { color: var(--pink); }
+  #start-card .sub { font-weight: 800; font-size: 14px; letter-spacing: 2.5px; color: #556; margin-top: 6px; text-transform: uppercase; }
+  #controls-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6px 18px; margin: 18px auto 6px; max-width: 460px;
+    font-weight: 700; font-size: 14.5px; text-align: left;
+  }
+  #controls-grid b {
+    background: var(--ink); color: #fff; padding: 1px 8px; margin-right: 7px; font-size: 12.5px;
+    display: inline-block; min-width: 52px; text-align: center;
+  }
+  #start-btn {
+    margin-top: 16px; pointer-events: auto; cursor: pointer;
+    font-family: 'Archivo Black', sans-serif; font-size: 20px; letter-spacing: 2px;
+    background: var(--grab); color: #fff; border: 4px solid var(--ink); box-shadow: 7px 7px 0 var(--ink);
+    padding: 12px 42px; transform: skewX(-8deg);
+  }
+  #start-btn:hover { background: var(--teal); }
+  #start-btn:active { transform: skewX(-8deg) translate(3px, 3px); box-shadow: 3px 3px 0 var(--ink); }
+  #start-card .disclaimer { margin-top: 14px; font-size: 11px; font-weight: 600; color: #889; }
+  #start-overlay.hidden { display: none; }
+
+  @media (max-width: 900px) {
+    #order-board { display: none; }
+    #game-title { font-size: 19px; }
+  }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
 </head>
 <body>
-
-<canvas id="speed-lines"></canvas>
-
-<div id="hud-top-left">
-  <div class="live-pill"><span class="dot"></span> AUTO-PLAYING // MIRI SARAWAK STREET CIRCUIT</div>
-  <h1>MIRI GRAND CIRCUIT</h1>
-  <div id="road-name">SECTOR 1: BUKit KANADA (JALAN OIL WELL NO. 1)</div>
-  <div id="landmark-sub">Landmark: The Grand Old Lady & Giant MIRI Sign</div>
-
-  <div id="leaderboard">
-    <div class="lb-title"><span>POS / DRIVER (JDM SPEC)</span><span>LAP / GAP</span></div>
-    <div id="lb-rows"></div>
+<div id="hud">
+  <div id="id-box">
+    <div class="live-pill"><span class="dot"></span>LIVE</div>
+    <div id="game-title">MIRI <span>GRAB</span> DELIVERY RUSH</div>
+    <div id="hud-landmark">— TUA PEK KONG TEMPLE —</div>
   </div>
-</div>
 
-<div id="minimap-box">
-  <canvas id="minimap" width="190" height="190"></canvas>
-  <div id="minimap-label">MIRI GPS TRACKER (3.8 KM)</div>
-</div>
+  <div id="btn-box">
+    <button class="hud-btn" id="btn-time">NIGHT</button>
+    <button class="hud-btn warn" id="btn-rain">RAIN</button>
+    <button class="hud-btn" id="btn-cam">CAM</button>
+    <button class="hud-btn" id="btn-audio">AUDIO: OFF</button>
+  </div>
 
-<div id="controls">
-  <button id="btn-cam">CAM: AUTO TV DIRECTOR</button>
-  <button id="btn-car" class="secondary">CAR: #1 RX-7 FD (MIRI RED)</button>
-  <button id="btn-time">TIME: MIRI GOLDEN SUNSET</button>
-  <button id="btn-lines">SPEED LINES: ON</button>
-  <button id="btn-sound">SOUND: OFF</button>
-  <button id="btn-drive">DRIVE: AI (WASD/ARROWS)</button>
-</div>
+  <div id="minimap-box">
+    <canvas id="minimap" width="336" height="336"></canvas>
+    <div id="minimap-tag">MIRI STREET MAP</div>
+  </div>
 
-<div id="telemetry">
-  <div id="manual-pill">MANUAL DRIVE // 3s IDLE = AI TAKEOVER</div>
-  <div id="drift-pill">KANSEI DRIFT // TOUGE SLIP</div>
-  <div class="speed-row">
-    <div id="gear-box">4</div>
-    <div>
-      <div id="speed-val">168</div>
-      <div id="speed-unit">KM/H</div>
+  <div id="order-board">
+    <h3><span>ORDERS</span><span id="open-count">0 OPEN</span></h3>
+    <div id="order-list"><div id="no-orders">Waiting for orders...</div></div>
+  </div>
+
+  <div id="popups"></div>
+
+  <div id="lower-third">
+    <div id="cam-chip">CHASE CAM</div>
+    <div id="auto-chip">AUTO-PILOT</div>
+    <div id="telemetry">
+      <div class="tele-card"><div class="tele-label">SPEED</div><div class="tele-val" id="tele-spd">0 KM/H</div></div>
+      <div class="tele-card"><div class="tele-label">ODO</div><div class="tele-val green" id="tele-odo">0.0 KM</div></div>
+      <div class="tele-card"><div class="tele-label">STREAK</div><div class="tele-val" id="tele-streak">x1.00</div></div>
+      <div class="tele-card"><div class="tele-label">XP</div><div class="tele-val green" id="tele-xp">0</div></div>
     </div>
   </div>
-  <div id="rpm-bar-bg"><div id="rpm-bar-fill"></div></div>
+
+  <div id="wallet-box">
+    <div id="speedo"><span class="kmh" id="kmh">0</span><span class="unit"> KM/H</span></div>
+    <div><div id="rm-card"><span id="rm-val">RM 0.00</span></div></div>
+    <div id="deliv-count">0 DELIVERIES</div>
+  </div>
+
+  <div id="ticker">
+    <div id="ticker-tag">MIRI EARNINGS</div>
+    <div id="ticker-viewport"><span id="ticker-track">Welcome to Miri Grab Delivery Rush — kaki lima run starts now!</span></div>
+  </div>
 </div>
 
-<script type="importmap">
-  {
-    "imports": {
-      "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
-    }
-  }
-</script>
-
-<script type="module">
-  import * as THREE from 'three';
-
-  // ============================================================================
-  // 1. RENDERER, SCENE & CEL-SHADING PIPELINE
-  // ============================================================================
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xff7e5f);
-  scene.fog = new THREE.FogExp2(0xff7e5f, 0.00042);
-
-  const camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.6, 3500);
-  const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.BasicShadowMap; // Crisp cel-shaded shadows
-  document.body.appendChild(renderer.domElement);
-
-  // 4-Step Toon Gradient Map for crisp anime lighting bands
-  function createToonGradient() {
-    const data = new Uint8Array([55, 125, 200, 255]);
-    const tex = new THREE.DataTexture(data, 4, 1, THREE.RedFormat);
-    tex.minFilter = THREE.NearestFilter;
-    tex.magFilter = THREE.NearestFilter;
-    tex.needsUpdate = true;
-    return tex;
-  }
-  const toonGradient = createToonGradient();
-
-  function toonMat(hex, extra = {}) {
-    return new THREE.MeshToonMaterial({ color: hex, gradientMap: toonGradient, ...extra });
-  }
-
-  const outlineMat = new THREE.MeshBasicMaterial({ color: 0x090a0f, side: THREE.BackSide });
-  function addInkOutline(mesh, scale = 1.045) {
-    const out = new THREE.Mesh(mesh.geometry, outlineMat);
-    out.scale.multiplyScalar(scale);
-    mesh.add(out);
-    return mesh;
-  }
-
-  // Lighting: Miri West Coast Sunset over South China Sea
-  const hemiLight = new THREE.HemisphereLight(0xffe8c2, 0x28193d, 0.95);
-  scene.add(hemiLight);
-
-  const sunLight = new THREE.DirectionalLight(0xffb15e, 2.0);
-  sunLight.position.set(-700, 420, 350);
-  sunLight.castShadow = true;
-  sunLight.shadow.mapSize.width = 2048;
-  sunLight.shadow.mapSize.height = 2048;
-  sunLight.shadow.camera.near = 50;
-  sunLight.shadow.camera.far = 2200;
-  const shadowBound = 950;
-  sunLight.shadow.camera.left = -shadowBound;
-  sunLight.shadow.camera.right = shadowBound;
-  sunLight.shadow.camera.top = shadowBound;
-  sunLight.shadow.camera.bottom = -shadowBound;
-  scene.add(sunLight);
-
-  // Visual Sun Disc over the South China Sea
-  const sunDisc = new THREE.Mesh(
-    new THREE.SphereGeometry(95, 24, 24),
-    new THREE.MeshBasicMaterial({ color: 0xffe066, fog: false })
-  );
-  sunDisc.position.set(-1450, 240, 400);
-  scene.add(sunDisc);
-
-  // ============================================================================
-  // 2. PROCEDURAL ASPHALT TEXTURE GENERATOR (REALISTIC GRAIN + LANE MARKINGS)
-  // ============================================================================
-  function createAsphaltTexture() {
-    const canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = 512;
-    const ctx = canvas.getContext('2d');
-
-    // Base dark bitumen asphalt
-    ctx.fillStyle = '#252730';
-    ctx.fillRect(0, 0, 512, 512);
-
-    // Procedural aggregate mineral noise & tar streaks
-    for (let i = 0; i < 28000; i++) {
-      const x = Math.random() * 512;
-      const y = Math.random() * 512;
-      const v = 26 + Math.floor(Math.random() * 34);
-      ctx.fillStyle = `rgb(${v},${v},${v + 4})`;
-      ctx.fillRect(x, y, 2, 2);
-    }
-
-    // Subtle dark tire wear grooves in Left & Right lanes
-    ctx.fillStyle = 'rgba(12, 13, 18, 0.35)';
-    ctx.fillRect(95, 0, 35, 512);
-    ctx.fillRect(155, 0, 35, 512);
-    ctx.fillRect(320, 0, 35, 512);
-    ctx.fillRect(380, 0, 35, 512);
-
-    // Outer solid white road edge lines
-    ctx.fillStyle = '#e9ecef';
-    ctx.fillRect(18, 0, 10, 512);
-    ctx.fillRect(484, 0, 10, 512);
-
-    // Malaysian JKR Center Double/Dashed Yellow-White Median Line
-    ctx.fillStyle = '#ffd166';
-    for (let y = 0; y < 512; y += 64) {
-      ctx.fillRect(246, y + 8, 8, 40);
-      ctx.fillRect(258, y + 8, 8, 40);
-    }
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.wrapS = THREE.RepeatWrapping;
-    texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set(1, 165);
-    texture.anisotropy = 8;
-    return texture;
-  }
-  const asphaltTex = createAsphaltTexture();
-
-  // ============================================================================
-  // 3. REAL MIRI TOWN GEOGRAPHY & LARGE-SCALE TRACK SPLINE (~3.8 KM SCALE)
-  // ============================================================================
-  // Coordinates mapped to mirror Miri's real geography:
-  // - Northeast/East Ridge: Canada Hill (Bukit Kanada) running NE-to-SW
-  // - North/East Highway: Jalan Miri-Pujut & Bulatan Park Lake
-  // - Central Grid: Miri City Fan, Pustaka Miri, Times Square & Old Town (Tua Pek Kong)
-  // - West Coastline: Marina Bay, Coco Cabana Seahorse Lighthouse, Brighton Beach / Tanjong Lobang
-  const waypoints = [
-    // Sector 1: Canada Hill Summit & Jalan Oil Well No. 1 Touge Descent
-    new THREE.Vector3(220, 92, -520),   // 0: Summit by The Grand Old Lady & Petroleum Museum
-    new THREE.Vector3(310, 82, -390),   // 1: Upper Ridge Panorama (Below Giant MIRI Sign)
-    new THREE.Vector3(175, 58, -280),   // 2: Jalan Oil Well No. 1 Hairpin 1
-    new THREE.Vector3(295, 34, -150),   // 3: Lopeng / Hill 9 Switchback
-    new THREE.Vector3(190, 12, -30),    // 4: Foot of Canada Hill (Jalan Setia Raja Junction)
-
-    // Sector 2: Jalan Miri-Pujut Dual Carriageway & Bulatan Park
-    new THREE.Vector3(460, 4, 60),      // 5: Jalan Miri-Pujut Flyover Acceleration
-    new THREE.Vector3(640, 4, 240),     // 6: Pujut 7 High-Speed Sweep
-    new THREE.Vector3(560, 4, 480),     // 7: Bulatan Park Ornamental Lake Roundabout
-    new THREE.Vector3(310, 4, 520),     // 8: Saberkas / Boulevard Straight
-
-    // Sector 3: Miri City Fan, Times Square & Old Town Commercial District
-    new THREE.Vector3(70, 4, 370),      // 9: Miri City Fan Amphitheatre & Pustaka Library Chicane
-    new THREE.Vector3(-85, 4, 220),     // 10: Miri Times Square Urban 90-Degree Corner
-    new THREE.Vector3(-220, 4, 360),    // 11: Old Town China Street & Tua Pek Kong Temple
-
-    // Sector 4: Marina Bay Coastal Highway, Coco Cabana & Tanjong Lobang Climb
-    new THREE.Vector3(-490, 3, 470),    // 12: Marina Bay Jetty Entry
-    new THREE.Vector3(-640, 3, 210),    // 13: Coco Cabana & Seahorse Lighthouse Apex
-    new THREE.Vector3(-590, 3, -120),   // 14: Brighton Beach / Taman Selera Coastal Blast
-    new THREE.Vector3(-480, 6, -420),   // 15: Tanjong Lobang Cliffside Corner
-    new THREE.Vector3(-210, 36, -590),  // 16: North Hill / Kampung Wireless Uphill Touge
-    new THREE.Vector3(20, 74, -610)     // 17: Final Crest back to Grand Old Lady
-  ];
-
-  const trackCurve = new THREE.CatmullRomCurve3(waypoints, true, 'catmullrom', 0.45);
-  const trackLength = trackCurve.getLength(); // ~3,850 meters in world units
-
-  // Sector Metadata for HUD
-  function getMiriSectorInfo(t) {
-    if (t < 0.24 || t >= 0.90) {
-      return {
-        road: 'SECTOR 1: BUKIT KANADA TOUGE (JALAN OIL WELL NO. 1)',
-        landmark: 'Grand Old Lady Derrick • Petroleum Museum • 18m MIRI Sign'
-      };
-    } else if (t < 0.48) {
-      return {
-        road: 'SECTOR 2: JALAN MIRI–PUJUT & BULATAN PARK',
-        landmark: 'Pujut 7 Roundabout • Bulatan Park Lake • Pelita Commercial'
-      };
-    } else if (t < 0.68) {
-      return {
-        road: 'SECTOR 3: JALAN KIPAS // MIRI CITY FAN & TIMES SQUARE',
-        landmark: 'City Fan Amphitheatre • Imperial Mall • Tua Pek Kong Temple'
-      };
-    } else {
-      return {
-        road: 'SECTOR 4: MARINA BAY COASTAL HIGHWAY & COCO CABANA',
-        landmark: 'Seahorse Lighthouse • South China Sea Offshore Rigs • Brighton Beach'
-      };
-    }
-  }
-
-  // Build Wide Multi-Lane Asphalt Road + Red/White Racing Curbs + Concrete Guardrails
-  const roadSamples = 900;
-  const roadHalfWidth = 17.5; // 35m total asphalt width (realistic 4-lane street circuit)
-  const curbWidth = 2.4;
-
-  function buildAsphaltCircuit() {
-    // 1. Main Textured Asphalt Ribbon
-    const asphaltGeo = new THREE.BufferGeometry();
-    const aPos = [];
-    const aUvs = [];
-    const aIdx = [];
-
-    // 2. Curbs & Guardrail Shoulder Ribbon
-    const curbGeo = new THREE.BufferGeometry();
-    const cPos = [];
-    const cCol = [];
-    const cIdx = [];
-
-    const colRed = new THREE.Color(0xd90429);
-    const colWhite = new THREE.Color(0xedf2f4);
-    const colWall = new THREE.Color(0x6c757d);
-
-    for (let i = 0; i <= roadSamples; i++) {
-      const t = i / roadSamples;
-      const pt = trackCurve.getPointAt(t);
-      const tan = trackCurve.getTangentAt(t).normalize();
-      const up = new THREE.Vector3(0, 1, 0);
-      const right = new THREE.Vector3().crossVectors(tan, up).normalize();
-
-      // Corner banking: tilt the whole cross-section into sustained turns (outer edge up)
-      const tanBank = trackCurve.getTangentAt((t + 0.025) % 1).normalize();
-      const bankCross = tan.x * tanBank.z - tan.z * tanBank.x;
-      const bank = THREE.MathUtils.clamp(-bankCross * 0.16, -0.18, 0.18);
-      if (Math.abs(bank) > 0.0001) {
-        const upSlope = new THREE.Vector3().crossVectors(right, tan).normalize(); // = +up
-        right.copy(right).multiplyScalar(Math.cos(bank)).addScaledVector(upSlope, Math.sin(bank)).normalize();
-      }
-
-      // Asphalt left & right edges
-      const pL = pt.clone().addScaledVector(right, -roadHalfWidth);
-      const pR = pt.clone().addScaledVector(right, roadHalfWidth);
-      aPos.push(pL.x, pL.y + 0.05, pL.z, pR.x, pR.y + 0.05, pR.z);
-      aUvs.push(0, t, 1, t);
-
-      if (i < roadSamples) {
-        const b = i * 2;
-        // CCW from above => upward normals (previous order faced down and was backface-culled)
-        aIdx.push(b, b + 1, b + 2, b + 1, b + 3, b + 2);
-      }
-
-      // Curbs & Concrete Jersey Barriers (Left Outer Wall, Left Curb, Right Curb, Right Outer Wall)
-      const pLW = pt.clone().addScaledVector(right, -(roadHalfWidth + curbWidth + 0.8));
-      const pLC = pt.clone().addScaledVector(right, -(roadHalfWidth + curbWidth));
-      const pRC = pt.clone().addScaledVector(right, roadHalfWidth + curbWidth);
-      const pRW = pt.clone().addScaledVector(right, roadHalfWidth + curbWidth + 0.8);
-
-      pLW.y += 1.35; pLC.y += 0.22; pRC.y += 0.22; pRW.y += 1.35;
-
-      cPos.push(
-        pLW.x, pLW.y, pLW.z,
-        pLC.x, pLC.y, pLC.z,
-        pL.x,  pL.y + 0.05, pL.z,
-        pR.x,  pR.y + 0.05, pR.z,
-        pRC.x, pRC.y, pRC.z,
-        pRW.x, pRW.y, pRW.z
-      );
-
-      const isRed = Math.floor(i / 3) % 2 === 0;
-      const curbC = isRed ? colRed : colWhite;
-
-      cCol.push(
-        colWall.r, colWall.g, colWall.b,
-        curbC.r, curbC.g, curbC.b,
-        curbC.r, curbC.g, curbC.b,
-        curbC.r, curbC.g, curbC.b,
-        curbC.r, curbC.g, curbC.b,
-        colWall.r, colWall.g, colWall.b
-      );
-
-      if (i < roadSamples) {
-        const base = i * 6;
-        // Left barrier, Left curb, Right curb, Right barrier (skip center road index 2->3)
-        const quads = [0, 1, 3, 4];
-        quads.forEach(q => {
-          const v0 = base + q;
-          const v1 = base + q + 1;
-          const v2 = base + q + 6;
-          const v3 = base + q + 7;
-          cIdx.push(v0, v1, v2, v1, v3, v2);
-        });
-      }
-    }
-
-    asphaltGeo.setIndex(aIdx);
-    asphaltGeo.setAttribute('position', new THREE.Float32BufferAttribute(aPos, 3));
-    asphaltGeo.setAttribute('uv', new THREE.Float32BufferAttribute(aUvs, 2));
-    asphaltGeo.computeVertexNormals();
-
-    const asphaltMat = new THREE.MeshToonMaterial({
-      map: asphaltTex,
-      gradientMap: toonGradient
-    });
-    const asphaltMesh = new THREE.Mesh(asphaltGeo, asphaltMat);
-    asphaltMesh.name = 'asphalt';
-    asphaltMesh.receiveShadow = true;
-    scene.add(asphaltMesh);
-
-    curbGeo.setIndex(cIdx);
-    curbGeo.setAttribute('position', new THREE.Float32BufferAttribute(cPos, 3));
-    curbGeo.setAttribute('color', new THREE.Float32BufferAttribute(cCol, 3));
-    curbGeo.computeVertexNormals();
-
-    const curbMesh = new THREE.Mesh(
-      curbGeo,
-      new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient })
-    );
-    curbMesh.receiveShadow = true;
-    curbMesh.castShadow = true;
-    scene.add(curbMesh);
-
-    // Concrete Support Pillars under Elevated Canada Hill & Flyover Sections
-    const pillarGeo = new THREE.BoxGeometry(5, 1, 5);
-    const pillarMat = toonMat(0x495057);
-    for (let i = 0; i < roadSamples; i += 18) {
-      const pt = trackCurve.getPointAt(i / roadSamples);
-      if (pt.y > 7) {
-        const p = addInkOutline(new THREE.Mesh(pillarGeo, pillarMat), 1.04);
-        p.scale.y = pt.y;
-        p.position.set(pt.x, pt.y * 0.5 - 0.5, pt.z);
-        scene.add(p);
-      }
-    }
-  }
-  buildAsphaltCircuit();
-
-  // ============================================================================
-  // 3B. OVERHEAD JKR HIGHWAY GANTRIES & START-FINISH RACE BANNER
-  // ============================================================================
-  function makeGantryTexture(painter) {
-    const c = document.createElement('canvas');
-    c.width = 1024;
-    c.height = 256;
-    const x = c.getContext('2d');
-    painter(x);
-    const tex = new THREE.CanvasTexture(c);
-    tex.anisotropy = 8;
-    return tex;
-  }
-
-  const jkrSign = (line1, line2) => (x) => {
-    x.fillStyle = '#00693e';
-    x.fillRect(0, 0, 1024, 256);
-    x.strokeStyle = '#ffffff';
-    x.lineWidth = 16;
-    x.strokeRect(16, 16, 992, 224);
-    x.fillStyle = '#ffffff';
-    x.textAlign = 'center';
-    x.textBaseline = 'middle';
-    if (line2) {
-      x.font = '900 88px "Segoe UI", Arial, sans-serif';
-      x.fillText(line1, 512, 84);
-      x.font = '900 64px "Segoe UI", Arial, sans-serif';
-      x.fillText(line2, 512, 176);
-    } else {
-      x.font = '900 96px "Segoe UI", Arial, sans-serif';
-      x.fillText(line1, 512, 128);
-    }
-  };
-
-  const checkerBanner = () => (x) => {
-    x.fillStyle = '#101014';
-    x.fillRect(0, 0, 1024, 256);
-    const s = 32;
-    for (let r = 0; r < 4; r++) {
-      for (let c = 0; c < 32; c++) {
-        x.fillStyle = (r + c) % 2 === 0 ? '#f8f9fa' : '#101014';
-        x.fillRect(c * s, r * s, s, s);
-      }
-    }
-    x.fillStyle = '#ffd166';
-    x.font = '900 80px "Segoe UI", Arial, sans-serif';
-    x.textAlign = 'center';
-    x.textBaseline = 'middle';
-    x.fillText('MIRI GRAND CIRCUIT // START - FINISH', 512, 204);
-  };
-
-  function buildGantry(t, painter) {
-    const pt = trackCurve.getPointAt(t);
-    const tan = trackCurve.getTangentAt(t).normalize();
-    const up = new THREE.Vector3(0, 1, 0);
-    const right = new THREE.Vector3().crossVectors(tan, up).normalize();
-
-    const g = new THREE.Group();
-    g.position.copy(pt);
-    g.lookAt(pt.clone().add(tan)); // -Z along travel; panel +Z faces approaching cars
-
-    const span = roadHalfWidth * 2 + curbWidth * 2 + 9;
-    const postMat = toonMat(0xadb5bd);
-    const postH = Math.max(pt.y + 10.5, 10.5); // anchored to ground, pier through hillside on climbs
-    const postW = THREE.MathUtils.clamp(postH / 14, 0.9, 5.5);
-    [-span / 2, span / 2].forEach(px => {
-      const post = addInkOutline(new THREE.Mesh(new THREE.BoxGeometry(postW, postH, postW), postMat), 1.06);
-      post.position.set(px, postH / 2, 0);
-      g.add(post);
-    });
-    const beam = addInkOutline(new THREE.Mesh(new THREE.BoxGeometry(span + 2.4, 0.8, 1.0), postMat), 1.08);
-    beam.position.set(0, 9.9, 0);
-    g.add(beam);
-    const panel = new THREE.Mesh(
-      new THREE.PlaneGeometry(span - 2.5, 3.4),
-      new THREE.MeshBasicMaterial({ map: makeGantryTexture(painter), side: THREE.DoubleSide })
-    );
-    panel.position.set(0, 7.6, 0);
-    panel.rotation.y = Math.PI; // readable from the approaching traffic side
-    g.add(panel);
-    scene.add(g);
-  }
-
-  // Sector transition gantries (match getMiriSectorInfo thresholds) + start/finish
-  buildGantry(0.24, jkrSign('PUJUT / PERMYJAYA', 'JALAN MIRI-PUJUT'));
-  buildGantry(0.48, jkrSign('BANDARAYA MIRI', 'MIRI CITY CENTER'));
-  buildGantry(0.68, jkrSign('MARINA BAY / LUAK', 'COCO CABANA'));
-  buildGantry(0.90, checkerBanner());
-
-  // ============================================================================
-  // 4. REAL MIRI SCENERY, TOPOGRAPHY & ICONIC LANDMARKS
-  // ============================================================================
-  // 4A. South China Sea (West of Miri) & Coastal Mainland Plane
-  // Animated vertex waves: medium-resolution plane over the visible ocean
-  const seaGeo = new THREE.PlaneGeometry(1900, 3000, 72, 72);
-  seaGeo.rotateX(-Math.PI / 2);
-  const seaMesh = new THREE.Mesh(seaGeo, toonMat(0x0077b6));
-  seaMesh.position.set(-1560, -1.8, 0);
-  scene.add(seaMesh);
-  const seaPosAttr = seaGeo.attributes.position;
-  const seaBasePos = seaPosAttr.array.slice(); // flat base; waves displace Y only
-
-  // Animated shoreline foam strip along the Brighton / Marina Beach waterline
-  function createFoamTexture() {
-    const c = document.createElement('canvas');
-    c.width = 256;
-    c.height = 512;
-    const x = c.getContext('2d');
-    x.clearRect(0, 0, 256, 512);
-    for (let i = 0; i < 900; i++) {
-      const bx = Math.random() * 256;
-      const edge = 1 - bx / 256; // denser toward the waterline (west edge of strip)
-      if (Math.random() < 0.28 + edge * 0.65) {
-        const r = 1.5 + Math.random() * 5;
-        x.fillStyle = `rgba(255, 255, 255, ${0.25 + Math.random() * 0.55})`;
-        x.beginPath();
-        x.arc(bx, Math.random() * 512, r, 0, Math.PI * 2);
-        x.fill();
-      }
-    }
-    const tex = new THREE.CanvasTexture(c);
-    tex.wrapS = THREE.RepeatWrapping;
-    tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(1, 10);
-    return tex;
-  }
-  let foamBaseOpacity = 0.75;
-  const foamMat = new THREE.MeshBasicMaterial({
-    map: createFoamTexture(), transparent: true, opacity: foamBaseOpacity, depthWrite: false
-  });
-  const foamMesh = new THREE.Mesh(new THREE.PlaneGeometry(46, 4500), foamMat);
-  foamMesh.rotation.x = -Math.PI / 2;
-  foamMesh.position.set(-952, -1.5, 0);
-  scene.add(foamMesh);
-
-  // Sandy Brighton / Marina Beach Shoreline Strip
-  const beachMesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(650, 4500),
-    toonMat(0xf4d58d)
-  );
-  beachMesh.rotation.x = -Math.PI / 2;
-  beachMesh.position.set(-640, -1.1, 0);
-  scene.add(beachMesh);
-
-  // Main Miri Town Alluvial Plain
-  // West edge starts at the beach (x=-315) so the sand + animated sea are not buried
-  const townGround = new THREE.Mesh(
-    new THREE.PlaneGeometry(4200, 4500),
-    toonMat(0x2b9348)
-  );
-  townGround.rotation.x = -Math.PI / 2;
-  townGround.position.set(1795, -0.5, 0);
-  townGround.receiveShadow = true;
-  scene.add(townGround);
-
-  // 4B. Canada Hill (Bukit Kanada) Limestone Ridge (Stretching NE to SW)
-  function buildCanadaHillRidge() {
-    const ridgeGroup = new THREE.Group();
-    // Sized/placed to stay clear of the elevated road corridor (road runs above on pillars)
-    const hillConfigs = [
-      { x: 255, z: -565, r: 110, h: 88, col: 0x1b4332 }, // summit mound under the Grand Old Lady
-      { x: 430, z: -330, r: 200, h: 60, col: 0x2d6a4f },
-      { x: 640, z: -170, r: 150, h: 45, col: 0x40916c },
-      { x: -180, z: -800, r: 190, h: 62, col: 0x2d6a4f }
-    ];
-    hillConfigs.forEach(cfg => {
-      const cone = addInkOutline(
-        new THREE.Mesh(new THREE.CylinderGeometry(cfg.r * 0.42, cfg.r, cfg.h, 14), toonMat(cfg.col)),
-        1.015
-      );
-      cone.position.set(cfg.x, cfg.h * 0.5 - 1, cfg.z);
-      cone.receiveShadow = true;
-      ridgeGroup.add(cone);
-    });
-    scene.add(ridgeGroup);
-  }
-  buildCanadaHillRidge();
-
-  // 4C. Landmark 1: THE GRAND OLD LADY (1910 Oil Well No. 1) + Nodding Donkey + Petroleum Museum + Giant MIRI Sign
-  function buildCanadaHillSummitLandmarks() {
-    const summit = new THREE.Group();
-    summit.position.set(255, 90, -565);
-
-    // 30-Meter Steel Lattice Derrick ("Grand Old Lady")
-    const derrickMat = toonMat(0xdee2e6);
-    const legGeo = new THREE.CylinderGeometry(0.45, 0.85, 58, 6);
-    [[-7, -7], [7, -7], [-7, 7], [7, 7]].forEach(([ox, oz]) => {
-      const leg = addInkOutline(new THREE.Mesh(legGeo, derrickMat), 1.08);
-      leg.position.set(ox, 28, oz);
-      leg.rotation.z = ox * 0.018;
-      leg.rotation.x = -oz * 0.018;
-      summit.add(leg);
-    });
-    for (let h = 8; h <= 52; h += 9) {
-      const w = 15 - (h / 58) * 9.5;
-      const brace = addInkOutline(new THREE.Mesh(new THREE.BoxGeometry(w, 1.1, w), toonMat(0xd90429)), 1.06);
-      brace.position.y = h;
-      summit.add(brace);
-    }
-    const crown = addInkOutline(new THREE.Mesh(new THREE.BoxGeometry(6.5, 4, 6.5), toonMat(0xffbe0b)), 1.06);
-    crown.position.y = 58;
-    summit.add(crown);
-
-    // Muzium Petroleum Miri (Stone-clad exhibition building with pitched roof)
-    const museumBase = addInkOutline(new THREE.Mesh(new THREE.BoxGeometry(52, 16, 28), toonMat(0xe9edc9)), 1.03);
-    museumBase.position.set(55, 8, 12);
-    summit.add(museumBase);
-    const museumRoof = addInkOutline(new THREE.Mesh(new THREE.ConeGeometry(26, 12, 4), toonMat(0x0077b6)), 1.04);
-    museumRoof.position.set(55, 22, 12);
-    museumRoof.rotation.y = Math.PI / 4;
-    summit.add(museumRoof);
-
-    // Giant "MIRI" Hollywood-Style Sign (Facing West toward South China Sea & Track)
-    const signGroup = new THREE.Group();
-    signGroup.position.set(95, 2, 145);
-    signGroup.rotation.y = -Math.PI * 0.35;
-    const letterMat = toonMat(0xffffff);
-    const barGeo = new THREE.BoxGeometry(3.2, 24, 3.2);
-
-    // Build M - I - R - I in giant 3D block letters
-    const addBar = (x, y, w, h, rotZ = 0) => {
-      const m = addInkOutline(new THREE.Mesh(new THREE.BoxGeometry(w, h, 3.2), letterMat), 1.06);
-      m.position.set(x, y, 0);
-      m.rotation.z = rotZ;
-      signGroup.add(m);
-    };
-    // 'M'
-    addBar(-42, 12, 3.5, 24);
-    addBar(-35, 14, 3.2, 16, 0.45);
-    addBar(-29, 14, 3.2, 16, -0.45);
-    addBar(-22, 12, 3.5, 24);
-    // 'I'
-    addBar(-8, 12, 3.8, 24);
-    // 'R'
-    addBar(6, 12, 3.5, 24);
-    addBar(13, 21, 14, 3.5);
-    addBar(13, 13, 14, 3.5);
-    addBar(19, 17, 3.5, 11);
-    addBar(15, 6, 3.5, 14, -0.55);
-    // 'I'
-    addBar(32, 12, 3.8, 24);
-
-    summit.add(signGroup);
-    scene.add(summit);
-  }
-  buildCanadaHillSummitLandmarks();
-
-  // 4D. Landmark 2: COCO CABANA & MIRI SEAHORSE LIGHTHOUSE + OFFSHORE OIL RIGS
-  function buildMarinaBayAndCoast() {
-    // Miri Seahorse Lighthouse at Coco Cabana
-    const lh = new THREE.Group();
-    lh.position.set(-710, 0, 210);
-
-    const tower = addInkOutline(new THREE.Mesh(new THREE.CylinderGeometry(5.5, 8.5, 52, 14), toonMat(0xf8f9fa)), 1.05);
-    tower.position.y = 26;
-    lh.add(tower);
-
-    // Golden Seahorse Sculpted Body wrapping the tower
-    const seahorseTorso = addInkOutline(
-      new THREE.Mesh(new THREE.TorusGeometry(8.2, 2.6, 10, 20, Math.PI * 1.25), toonMat(0xffbe0b)),
-      1.06
-    );
-    seahorseTorso.position.set(4, 34, 0);
-    seahorseTorso.rotation.z = -Math.PI * 0.25;
-    lh.add(seahorseTorso);
-
-    const lantern = new THREE.Mesh(
-      new THREE.CylinderGeometry(5.2, 5.2, 7, 12),
-      new THREE.MeshBasicMaterial({ color: 0xffe066 })
-    );
-    lantern.position.y = 55;
-    lh.add(lantern);
-
-    const dome = addInkOutline(new THREE.Mesh(new THREE.ConeGeometry(7.5, 9, 14), toonMat(0xd90429)), 1.06);
-    dome.position.y = 62;
-    lh.add(dome);
-    scene.add(lh);
-
-    // Offshore Sarawak Shell / Petronas Oil Platforms on the South China Sea Horizon
-    function spawnOffshoreRig(x, z) {
-      const rig = new THREE.Group();
-      const legMat = toonMat(0x495057);
-      [[-14, -14], [14, -14], [-14, 14], [14, 14]].forEach(([lx, lz]) => {
-        const leg = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 2.2, 42, 8), legMat);
-        leg.position.set(lx, 18, lz);
-        rig.add(leg);
-      });
-      const deck = addInkOutline(new THREE.Mesh(new THREE.BoxGeometry(42, 7, 42), toonMat(0xff9f1c)), 1.04);
-      deck.position.y = 39;
-      rig.add(deck);
-      const flareBoom = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 1.4, 38, 6), toonMat(0xd90429));
-      flareBoom.position.set(0, 58, 0);
-      rig.add(flareBoom);
-      const flame = new THREE.Mesh(new THREE.SphereGeometry(4.5, 10, 10), new THREE.MeshBasicMaterial({ color: 0xffd166 }));
-      flame.position.set(0, 79, 0);
-      rig.add(flame);
-      rig.position.set(x, -2, z);
-      scene.add(rig);
-    }
-    spawnOffshoreRig(-1250, -250);
-    spawnOffshoreRig(-1380, 420);
-  }
-  buildMarinaBayAndCoast();
-
-  // 4E. Landmark 3: BULATAN PARK LAKE, MIRI CITY FAN, TIMES SQUARE & TUA PEK KONG TEMPLE
-  function buildUrbanMiriDistricts() {
-    // 1. Bulatan Park Ornamental Lake & Suspension Bridge (East Sector)
-    const lake = new THREE.Mesh(new THREE.CircleGeometry(115, 32), toonMat(0x0096c7));
-    lake.rotation.x = -Math.PI / 2;
-    lake.position.set(490, 0.2, 370);
-    scene.add(lake);
-
-    const monument = addInkOutline(new THREE.Mesh(new THREE.TorusKnotGeometry(16, 3.2, 48, 8), toonMat(0xffbe0b)), 1.05);
-    monument.position.set(490, 22, 370);
-    scene.add(monument);
-
-    // 2. Miri City Fan Amphitheatre & Pustaka Miri Library (Central Sector)
-    const fanPlaza = new THREE.Mesh(new THREE.RingGeometry(25, 85, 24, 1, 0, Math.PI * 1.25), toonMat(0xe07a5f));
-    fanPlaza.rotation.x = -Math.PI / 2;
-    fanPlaza.position.set(40, 0.3, 285);
-    scene.add(fanPlaza);
-
-    const amphitheatreRoof = addInkOutline(
-      new THREE.Mesh(new THREE.ConeGeometry(34, 18, 6, 1, true), toonMat(0xf8f9fa, { side: THREE.DoubleSide })),
-      1.04
-    );
-    amphitheatreRoof.position.set(40, 14, 285);
-    scene.add(amphitheatreRoof);
-
-    // 3. Tua Pek Kong Chinese Temple (Old Town Junction)
-    const temple = new THREE.Group();
-    temple.position.set(-250, 0, 435);
-    const hall = addInkOutline(new THREE.Mesh(new THREE.BoxGeometry(36, 16, 26), toonMat(0xd90429)), 1.04);
-    hall.position.y = 8;
-    temple.add(hall);
-    const pagodaRoof = addInkOutline(new THREE.Mesh(new THREE.ConeGeometry(28, 11, 4), toonMat(0xffbe0b)), 1.05);
-    pagodaRoof.position.y = 21;
-    pagodaRoof.rotation.y = Math.PI / 4;
-    temple.add(pagodaRoof);
-    scene.add(temple);
-
-    // 4. Miri Shophouses, Pelita Commercial Blocks, Imperial Mall & Pullman Waterfront Hotel
-    const palette = [0xf8f9fa, 0x90e0ef, 0xffd166, 0xffcad4, 0xa8dadc, 0xe9c46a];
-    const windowMat = new THREE.MeshBasicMaterial({ color: 0x1d3557 });
-
-    function spawnBuilding(x, z, w, h, d, colorHex) {
-      const b = addInkOutline(new THREE.Mesh(new THREE.BoxGeometry(w, h, d), toonMat(colorHex)), 1.03);
-      b.position.set(x, h / 2, z);
-      b.castShadow = true;
-      b.receiveShadow = true;
-
-      // Stylised window strip bands
-      const strip = new THREE.Mesh(new THREE.BoxGeometry(w * 1.01, h * 0.65, d * 1.01), windowMat);
-      b.add(strip);
-      scene.add(b);
-    }
-
-    // Miri Waterfront High-Rises (Pullman / Imperial / Marina Times Square)
-    spawnBuilding(-380, 320, 44, 95, 34, 0x90e0ef);
-    spawnBuilding(-310, 250, 38, 78, 38, 0xf8f9fa);
-    spawnBuilding(-140, 140, 52, 68, 42, 0xffd166);
-    spawnBuilding(-40, 120, 46, 82, 36, 0xa8dadc);
-    spawnBuilding(160, 210, 42, 64, 42, 0xe9c46a);
-    spawnBuilding(240, 420, 55, 58, 38, 0xffcad4);
-
-    // Sarawak Shophouse Rows along Pujut & Old Town (kept safely away from track spline)
-    for (let i = 0; i < 65; i++) {
-      const angle = (i / 65) * Math.PI * 2;
-      const dist = 140 + (i % 4) * 55;
-      const bx = Math.cos(angle) * dist + 40;
-      const bz = Math.sin(angle) * dist + 220;
-
-      // Ensure shophouse doesn't sit on the asphalt road
-      let tooClose = false;
-      for (let s = 0; s < 1; s += 0.02) {
-        const rp = trackCurve.getPointAt(s);
-        if (Math.hypot(bx - rp.x, bz - rp.z) < 52) { tooClose = true; break; }
-      }
-      if (!tooClose) {
-        const w = 18 + (i % 3) * 8;
-        const h = 16 + (i % 5) * 9;
-        const d = 22 + (i % 2) * 8;
-        spawnBuilding(bx, bz, w, h, d, palette[i % palette.length]);
-      }
-    }
-  }
-  buildUrbanMiriDistricts();
-
-  // 4F. Tropical Sarawak Casuarina & Palm Trees + Streetlights along the Circuit
-  const streetBeams = [];
-  const streetBeamGeo = new THREE.ConeGeometry(4.4, 10, 14, 1, true);
-  const streetBeamMat = new THREE.MeshBasicMaterial({
-    color: 0xffd97a, transparent: true, opacity: 0.12,
-    blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide
-  });
-  function populateRoadsideScenery() {
-    const trunkMat = toonMat(0x6c584c);
-    const leafMat = toonMat(0x38b000);
-    const poleMat = toonMat(0xadb5bd);
-    const bulbMat = new THREE.MeshBasicMaterial({ color: 0xffe066 });
-
-    for (let i = 0; i < 180; i++) {
-      const t = i / 180;
-      const pt = trackCurve.getPointAt(t);
-      const tan = trackCurve.getTangentAt(t).normalize();
-      const right = new THREE.Vector3().crossVectors(tan, new THREE.Vector3(0, 1, 0)).normalize();
-
-      // Streetlights every 3rd step on right shoulder
-      if (i % 3 === 0) {
-        const lp = pt.clone().addScaledVector(right, roadHalfWidth + 3.2);
-        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.35, 11, 6), poleMat);
-        pole.position.copy(lp).add(new THREE.Vector3(0, 5.5, 0));
-        const arm = new THREE.Mesh(new THREE.BoxGeometry(3.5, 0.3, 0.3), poleMat);
-        arm.position.set(-1.5, 5.3, 0);
-        pole.add(arm);
-        const bulb = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.35, 0.6), bulbMat);
-        bulb.position.set(-2.8, 5.1, 0);
-        pole.add(bulb);
-        const sbeam = new THREE.Mesh(streetBeamGeo, streetBeamMat);
-        sbeam.position.set(-2.8, 0.1, 0); // tip at bulb, wide base near ground
-        sbeam.visible = false;
-        pole.add(sbeam);
-        streetBeams.push(sbeam);
-        scene.add(pole);
-      }
-
-      // Palm Trees outside barriers
-      const side = i % 2 === 0 ? 1 : -1;
-      const treePos = pt.clone().addScaledVector(right, side * (roadHalfWidth + 14 + (i % 5) * 4));
-      if (treePos.y < 75) {
-        const palm = new THREE.Group();
-        const trunk = addInkOutline(new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.9, 13, 6), trunkMat), 1.08);
-        trunk.position.y = 6.5;
-        palm.add(trunk);
-        for (let f = 0; f < 5; f++) {
-          const frond = addInkOutline(new THREE.Mesh(new THREE.ConeGeometry(2.8, 7.5, 4), leafMat), 1.06);
-          frond.position.y = 13;
-          frond.rotation.y = (f / 5) * Math.PI * 2;
-          frond.rotation.x = 1.1;
-          palm.add(frond);
-        }
-        palm.position.set(treePos.x, Math.max(0, treePos.y - 1), treePos.z);
-        const s = 0.85 + (i % 4) * 0.22;
-        palm.scale.set(s, s, s);
-        scene.add(palm);
-      }
-    }
-  }
-  populateRoadsideScenery();
-
-  // ============================================================================
-  // 5. REALISTIC CEL-SHADED JDM SPORTS CAR BUILDER (EXTRUDED AERODYNAMIC PROFILE)
-  // ============================================================================
-  function createRealisticCelCar(spec) {
-    const root = new THREE.Group();
-    const chassis = new THREE.Group(); // Allows pitch/roll/drift yaw independent of spline tangent
-    root.add(chassis);
-
-    // 1. Sculpted Aerodynamic Side-Profile Extrusion (Sleek Hood, Fastback Cabin, Rear Deck)
-    const profile = new THREE.Shape();
-    profile.moveTo(-2.35, 0.28);  // Front splitter bottom
-    profile.lineTo(-2.45, 0.62);  // Front bumper nose
-    profile.lineTo(-2.15, 0.82);  // Headlightchamfer
-    profile.lineTo(-0.85, 0.96);  // Long sculpted JDM hood
-    profile.lineTo(-0.15, 1.48);  // steeply raked windshield A-pillar
-    profile.lineTo(0.95, 1.46);   // Coupe roofline
-    profile.lineTo(1.85, 1.02);   // Fastback C-pillar / rear glass
-    profile.lineTo(2.38, 0.96);   // Rear trunk deck
-    profile.lineTo(2.42, 0.35);   // Rear diffuser bottom
-    profile.closePath();
-
-    const extrudeSettings = {
-      steps: 1,
-      depth: 1.92,
-      bevelEnabled: true,
-      bevelThickness: 0.16,
-      bevelSize: 0.14,
-      bevelSegments: 2
-    };
-    const bodyGeo = new THREE.ExtrudeGeometry(profile, extrudeSettings);
-    // Rotate so length is along Z: profile nose (-x) must land at -Z (car front = -Z).
-    // +PI/2 mapped the nose to +Z and made every car drive tail-first.
-    bodyGeo.center();
-    bodyGeo.rotateY(-Math.PI / 2);
-
-    const bodyMat = toonMat(spec.color);
-    const bodyMesh = addInkOutline(new THREE.Mesh(bodyGeo, bodyMat), 1.035);
-    bodyMesh.position.y = 0.88;
-    bodyMesh.castShadow = true;
-    chassis.add(bodyMesh);
-
-    // 2. Widebody Fender Flares (Front & Rear wheel arches)
-    const flareGeo = new THREE.BoxGeometry(2.26, 0.42, 1.05);
-    const frontFlares = addInkOutline(new THREE.Mesh(flareGeo, bodyMat), 1.04);
-    frontFlares.position.set(0, 0.56, -1.42);
-    chassis.add(frontFlares);
-
-    const rearFlares = addInkOutline(new THREE.Mesh(flareGeo, bodyMat), 1.04);
-    rearFlares.position.set(0, 0.58, 1.42);
-    chassis.add(rearFlares);
-
-    // 3. Tinted Dark Cabin Glass (Windshield, Side Windows, Rear Hatch)
-    const glassMat = toonMat(0x141b29);
-    const cabinGlass = new THREE.Mesh(new THREE.BoxGeometry(1.76, 0.48, 2.05), glassMat);
-    cabinGlass.position.set(0, 1.26, 0.25);
-    chassis.add(cabinGlass);
-
-    // 4. Carbon Fiber Front Splitter, Side Skirts & Rear Diffuser
-    const carbonMat = toonMat(0x1b1d24);
-    const splitter = addInkOutline(new THREE.Mesh(new THREE.BoxGeometry(2.22, 0.12, 5.05), carbonMat), 1.03);
-    splitter.position.set(0, 0.26, 0);
-    chassis.add(splitter);
-
-    // 5. GT Rear Wing Spoiler with Endplates
-    const wingGroup = new THREE.Group();
-    const strutGeo = new THREE.BoxGeometry(0.08, 0.45, 0.28);
-    [-0.65, 0.65].forEach(sx => {
-      const st = new THREE.Mesh(strutGeo, carbonMat);
-      st.position.set(sx, 1.32, 2.15);
-      st.rotation.x = -0.2;
-      wingGroup.add(st);
-    });
-    const blade = addInkOutline(new THREE.Mesh(new THREE.BoxGeometry(2.18, 0.08, 0.44), bodyMat), 1.05);
-    blade.position.set(0, 1.54, 2.22);
-    blade.rotation.x = 0.12;
-    wingGroup.add(blade);
-    chassis.add(wingGroup);
-
-    // 6. Side Wing Mirrors
-    [-1.08, 1.08].forEach(mx => {
-      const mirror = addInkOutline(new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.16, 0.22), bodyMat), 1.08);
-      mirror.position.set(mx, 1.08, -0.58);
-      chassis.add(mirror);
-    });
-
-    // 7. Glowing Projector Headlights & JDM Afterburner Tail Lights
-    const headMat = new THREE.MeshBasicMaterial({ color: 0xfff8d6 });
-    [-0.74, 0.74].forEach(hx => {
-      const hl = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.16, 0.12), headMat);
-      hl.position.set(hx, 0.78, -2.48);
-      chassis.add(hl);
-    });
-
-    const tailMat = new THREE.MeshBasicMaterial({ color: 0xff0a54 });
-    const tailBar = new THREE.Mesh(new THREE.BoxGeometry(1.96, 0.18, 0.12), tailMat);
-    tailBar.position.set(0, 0.92, 2.48);
-    chassis.add(tailBar);
-
-    // 7b. Night Touge: additive volumetric headlight beams (visible only at night)
-    const beamGeo = new THREE.ConeGeometry(4.2, 30, 20, 1, true);
-    const beamMat = new THREE.MeshBasicMaterial({
-      color: 0xfff3c0, transparent: true, opacity: 0.15,
-      blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide
-    });
-    const headBeams = [-0.74, 0.74].map(hx => {
-      const beam = new THREE.Mesh(beamGeo, beamMat);
-      beam.rotation.x = Math.PI / 2; // tip at headlight, wide base 30m forward
-      beam.position.set(hx, 0.78, -2.48 - 15);
-      beam.visible = false;
-      chassis.add(beam);
-      return beam;
-    });
-
-    // 7c. Brake flare glow for hard corner braking
-    const brakeFlare = new THREE.Mesh(
-      new THREE.BoxGeometry(2.35, 0.5, 0.22),
-      new THREE.MeshBasicMaterial({
-        color: 0xff1f44, transparent: true, opacity: 0.8,
-        blending: THREE.AdditiveBlending, depthWrite: false
-      })
-    );
-    brakeFlare.position.set(0, 0.92, 2.58);
-    brakeFlare.visible = false;
-    chassis.add(brakeFlare);
-
-    // Dual Exhaust Tips
-    const exhaustMat = toonMat(0xadb5bd);
-    [-0.55, 0.55].forEach(ex => {
-      const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.35, 8), exhaustMat);
-      pipe.rotation.x = Math.PI / 2;
-      pipe.position.set(ex, 0.32, 2.52);
-      chassis.add(pipe);
-    });
-
-    // 8. Detailed 5-Spoke Alloy Wheels & Rubber Tires
-    const tireGeo = new THREE.CylinderGeometry(0.46, 0.46, 0.38, 16);
-    tireGeo.rotateZ(Math.PI / 2);
-    const rimGeo = new THREE.CylinderGeometry(0.30, 0.30, 0.40, 10);
-    rimGeo.rotateZ(Math.PI / 2);
-    const spokeGeo = new THREE.BoxGeometry(0.42, 0.52, 0.09);
-
-    const tireMat = toonMat(0x16181d);
-    const rimMat = toonMat(spec.rimColor || 0xffd166);
-
-    const wheels = [];
-    const wheelCoords = [
-      { x: -1.08, y: 0.46, z: -1.42, front: true },
-      { x:  1.08, y: 0.46, z: -1.42, front: true },
-      { x: -1.10, y: 0.46, z:  1.42, front: false },
-      { x:  1.10, y: 0.46, z:  1.42, front: false }
-    ];
-
-    wheelCoords.forEach(wc => {
-      const wGroup = new THREE.Group();
-      wGroup.position.set(wc.x, wc.y, wc.z);
-      const spinGroup = new THREE.Group();
-      const tire = addInkOutline(new THREE.Mesh(tireGeo, tireMat), 1.06);
-      const rim = new THREE.Mesh(rimGeo, rimMat);
-      const s1 = new THREE.Mesh(spokeGeo, rimMat);
-      const s2 = new THREE.Mesh(spokeGeo, rimMat);
-      s2.rotation.x = Math.PI / 2;
-      spinGroup.add(tire, rim, s1, s2);
-      wGroup.add(spinGroup);
-      chassis.add(wGroup);
-      wheels.push({ steerPivot: wGroup, spinGroup, isFront: wc.front });
-    });
-
-    return { root, chassis, wheels, headBeams, brakeFlare };
-  }
-
-  // ============================================================================
-  // 6. AUTONOMOUS RACERS & CEL-SHADED DRIFT SMOKE SYSTEM
-  // ============================================================================
-  const carRoster = [
-    // char = per-engine audio signature: fMul (pitch), cutoffBase/Span (filter), q (sharpness), lfoRate/Depth (rotary wobble)
-    { name: '#1 RX-7 FD (MIRI RED)',      color: 0xe63946, rimColor: 0xffd166, baseSpeed: 68, lanePref: -6.5, char: { fMul: 0.92, cutoffBase: 300, cutoffSpan: 2400, q: 0.7, lfoRate: 38, lfoDepth: 55 } },
-    { name: '#2 GT-R R34 (BAYSIDE BLUE)', color: 0x0077b6, rimColor: 0xf8f9fa, baseSpeed: 67, lanePref:  6.5, char: { fMul: 1.0,  cutoffBase: 380, cutoffSpan: 3000, q: 1.2, lfoRate: 0,  lfoDepth: 0 } },
-    { name: '#3 SUPRA A80 (SUNSET GOLD)', color: 0xffbe0b, rimColor: 0x2b2d42, baseSpeed: 66, lanePref: -2.2, char: { fMul: 1.05, cutoffBase: 340, cutoffSpan: 2800, q: 0.9, lfoRate: 0,  lfoDepth: 0 } },
-    { name: '#4 NSX NA1 (SARAWAK WHITE)', color: 0xf8f9fa, rimColor: 0xd90429, baseSpeed: 65.5, lanePref: 2.2, char: { fMul: 1.12, cutoffBase: 300, cutoffSpan: 2200, q: 0.5, lfoRate: 12, lfoDepth: 10 } },
-    { name: '#5 SILVIA S15 (TEAL DRIFT)', color: 0x06d6a0, rimColor: 0xffd166, baseSpeed: 64.8, lanePref: -9.5, char: { fMul: 1.18, cutoffBase: 420, cutoffSpan: 3200, q: 1.0, lfoRate: 0,  lfoDepth: 0 } },
-    { name: '#6 EVO IX (NIGHT PURPLE)',   color: 0x8338ec, rimColor: 0xffbe0b, baseSpeed: 64.2, lanePref:  9.5, char: { fMul: 0.97, cutoffBase: 360, cutoffSpan: 2700, q: 1.0, lfoRate: 0,  lfoDepth: 0 } }
-  ];
-
-  const racers = carRoster.map((spec, idx) => {
-    const built = createRealisticCelCar(spec);
-    scene.add(built.root);
-    return {
-      idx,
-      name: spec.name,
-      colorHex: '#' + spec.color.toString(16).padStart(6, '0'),
-      root: built.root,
-      chassis: built.chassis,
-      wheels: built.wheels,
-      headBeams: built.headBeams,
-      brakeFlare: built.brakeFlare,
-      audioChar: spec.char,
-      t: (idx * 0.022) % 1,
-      laps: 1,
-      speed: spec.baseSpeed,
-      baseSpeed: spec.baseSpeed,
-      lateralOffset: spec.lanePref,
-      targetLateral: spec.lanePref,
-      driftAngle: 0,
-      steerAngle: 0,
-      isDrifting: false,
-      pacePhase: idx * 1.7
-    };
-  });
-
-  // Drift Smoke Particle Pool (Cel-Shaded Spheres)
-  const smokePool = [];
-  const smokeGeo = new THREE.DodecahedronGeometry(0.75, 1);
-  const smokeMat = toonMat(0xf1faee, { transparent: true, opacity: 0.85 });
-  for (let i = 0; i < 90; i++) {
-    const m = new THREE.Mesh(smokeGeo, smokeMat.clone());
-    m.visible = false;
-    scene.add(m);
-    smokePool.push({ mesh: m, life: 0, vel: new THREE.Vector3() });
-  }
-  let smokeCursor = 0;
-
-  function emitDriftSmoke(worldPos) {
-    const p = smokePool[smokeCursor];
-    smokeCursor = (smokeCursor + 1) % smokePool.length;
-    p.mesh.visible = true;
-    p.mesh.position.copy(worldPos);
-    p.mesh.scale.setScalar(0.6 + Math.random() * 0.5);
-    p.mesh.material.opacity = 0.82;
-    p.vel.set((Math.random() - 0.5) * 3, 2.2 + Math.random() * 2, (Math.random() - 0.5) * 3);
-    p.life = 1.0;
-  }
-
-  // ============================================================================
-  // 7. TV BROADCAST CAMERA DIRECTOR & INTERACTIVE UI STATE
-  // ============================================================================
-  const camModes = ['AUTO TV DIRECTOR', 'CHASE CAM', 'HELICOPTER CAM', 'TRACKSIDE TV', 'HOOD BUMPER CAM'];
-  let camModeIdx = 0;
-  let activeSubCam = 'CHASE CAM';
-  let directorTimer = 0;
-  let focusedCarIdx = 0;
-  let isNightMode = false;
-  let showSpeedLines = true;
-
-  const btnCam = document.getElementById('btn-cam');
-  const btnCar = document.getElementById('btn-car');
-  const btnTime = document.getElementById('btn-time');
-  const btnLines = document.getElementById('btn-lines');
-
-  btnCam.addEventListener('click', () => {
-    camModeIdx = (camModeIdx + 1) % camModes.length;
-    btnCam.textContent = `CAM: ${camModes[camModeIdx]}`;
-  });
-
-  btnCar.addEventListener('click', () => {
-    focusedCarIdx = (focusedCarIdx + 1) % racers.length;
-    btnCar.textContent = `CAR: ${racers[focusedCarIdx].name}`;
-  });
-
-  btnTime.addEventListener('click', () => {
-    isNightMode = !isNightMode;
-    racers.forEach(r => r.headBeams.forEach(b => { b.visible = isNightMode; }));
-    streetBeams.forEach(b => { b.visible = isNightMode; });
-    if (isNightMode) {
-      scene.background.setHex(0x0b0914);
-      scene.fog.color.setHex(0x0b0914);
-      hemiLight.intensity = 0.35;
-      sunLight.intensity = 0.55;
-      sunLight.color.setHex(0x4cc9f0);
-      sunDisc.visible = false;
-      foamBaseOpacity = 0.3;
-      btnTime.textContent = 'TIME: MIRI NIGHT TOUGE';
-    } else {
-      scene.background.setHex(0xff7e5f);
-      scene.fog.color.setHex(0xff7e5f);
-      hemiLight.intensity = 0.95;
-      sunLight.intensity = 2.0;
-      sunLight.color.setHex(0xffb15e);
-      sunDisc.visible = true;
-      foamBaseOpacity = 0.75;
-      btnTime.textContent = 'TIME: MIRI GOLDEN SUNSET';
-    }
-  });
-
-  btnLines.addEventListener('click', () => {
-    showSpeedLines = !showSpeedLines;
-    btnLines.textContent = `SPEED LINES: ${showSpeedLines ? 'ON' : 'OFF'}`;
-  });
-
-  // ============================================================================
-  // 7B. WEB AUDIO PROCEDURAL SYNTH ENGINE (JDM ROAR + BOV CHIRP + TIRE SCREECH)
-  // ============================================================================
-  let audioCtx = null, masterGain = null;
-  let engOscA, engOscB, engSub, engFilter, engGain;
-  let screechSrc, screechFilter, screechGain;
-  let lfoOsc, lfoGain;
-  let soundOn = false;
-  let prevGear = 1;
-
-  const btnSound = document.getElementById('btn-sound');
-
-  function initAudioEngine() {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    masterGain = audioCtx.createGain();
-    masterGain.gain.value = 0.8;
-    masterGain.connect(audioCtx.destination);
-
-    // Engine: detuned saw pair + sub square through RPM-driven lowpass
-    engFilter = audioCtx.createBiquadFilter();
-    engFilter.type = 'lowpass';
-    engFilter.frequency.value = 900;
-    engFilter.Q.value = 0.8;
-    engGain = audioCtx.createGain();
-    engGain.gain.value = 0;
-    engFilter.connect(engGain).connect(masterGain);
-
-    engOscA = audioCtx.createOscillator();
-    engOscA.type = 'sawtooth';
-    engOscB = audioCtx.createOscillator();
-    engOscB.type = 'sawtooth';
-    engSub = audioCtx.createOscillator();
-    engSub.type = 'square';
-    const subGain = audioCtx.createGain();
-    subGain.gain.value = 0.4;
-    engOscA.connect(engFilter);
-    engOscB.connect(engFilter);
-    engSub.connect(subGain).connect(engFilter);
-    engOscA.start(); engOscB.start(); engSub.start();
-
-    // Character LFO: rotary wobble (13B) / NA hum, modulates engine filter cutoff
-    lfoOsc = audioCtx.createOscillator();
-    lfoOsc.type = 'sine';
-    lfoOsc.frequency.value = 0;
-    lfoGain = audioCtx.createGain();
-    lfoGain.gain.value = 0;
-    lfoOsc.connect(lfoGain).connect(engFilter.frequency);
-    lfoOsc.start();
-
-    // Looping white-noise buffer shared by screech + BOV chirp
-    const len = Math.floor(audioCtx.sampleRate * 1.5);
-    const noiseBuf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
-    const data = noiseBuf.getChannelData(0);
-    for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
-
-    // Tire screech: noise through high-Q bandpass, gain follows drift state
-    screechSrc = audioCtx.createBufferSource();
-    screechSrc.buffer = noiseBuf;
-    screechSrc.loop = true;
-    screechFilter = audioCtx.createBiquadFilter();
-    screechFilter.type = 'bandpass';
-    screechFilter.frequency.value = 3000;
-    screechFilter.Q.value = 7;
-    screechGain = audioCtx.createGain();
-    screechGain.gain.value = 0;
-    screechSrc.connect(screechFilter).connect(screechGain).connect(masterGain);
-    screechSrc.start();
-  }
-
-  function playBovChirp() {
-    if (!soundOn || !audioCtx) return;
-    const t = audioCtx.currentTime;
-    const src = audioCtx.createBufferSource();
-    src.buffer = screechSrc.buffer;
-    src.playbackRate.value = 1.6;
-    const bp = audioCtx.createBiquadFilter();
-    bp.type = 'bandpass';
-    bp.Q.value = 2.5;
-    bp.frequency.setValueAtTime(2400, t);
-    bp.frequency.exponentialRampToValueAtTime(550, t + 0.16);
-    const g = audioCtx.createGain();
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(0.5, t + 0.012);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
-    src.connect(bp).connect(g).connect(masterGain);
-    src.start(t, Math.random() * 0.5);
-    src.stop(t + 0.22);
-  }
-
-  btnSound.addEventListener('click', () => {
-    if (!audioCtx) initAudioEngine();
-    soundOn = !soundOn;
-    if (soundOn) audioCtx.resume();
-    else audioCtx.suspend();
-    btnSound.textContent = `SOUND: ${soundOn ? 'ON' : 'OFF'}`;
-  });
-
-  // ============================================================================
-  // 7C. OPTIONAL MANUAL DRIVE (WASD/ARROWS) WITH IDLE-TIMEOUT AI TAKEOVER
-  // ============================================================================
-  const btnDrive = document.getElementById('btn-drive');
-  const keys = Object.create(null);
-  let manualArmed = false;
-  let lastInputTime = -10;
-  const MANUAL_TIMEOUT = 3.0;
-  const DRIVE_KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
-  const setDriveLabel = () => { btnDrive.textContent = manualArmed ? 'DRIVE: MANUAL' : 'DRIVE: AI (WASD/ARROWS)'; };
-
-  window.addEventListener('keydown', (e) => {
-    if (!DRIVE_KEYS.includes(e.code)) return;
-    if (!e.repeat) {
-      manualArmed = true;
-      lastInputTime = clock.getElapsedTime();
-      setDriveLabel();
-    }
-    keys[e.code] = true;
-    e.preventDefault();
-  });
-  window.addEventListener('keyup', (e) => { keys[e.code] = false; });
-
-  btnDrive.addEventListener('click', () => {
-    manualArmed = !manualArmed;
-    if (manualArmed) lastInputTime = clock.getElapsedTime();
-    setDriveLabel();
-  });
-
-  function updateAudioEngine(fCar, kmh) {
-    if (!soundOn || !audioCtx) return;
-    const t = audioCtx.currentTime;
-    const ch = fCar.audioChar;
-    const gearNorm = (kmh % 38) / 38;
-    const rpm = 1900 + gearNorm * 4800;
-    const f = (rpm / 60) * ch.fMul;
-    engOscA.frequency.setTargetAtTime(f, t, 0.06);
-    engOscB.frequency.setTargetAtTime(f * 1.007, t, 0.06);
-    engSub.frequency.setTargetAtTime(f * 0.5, t, 0.06);
-    engFilter.frequency.setTargetAtTime(ch.cutoffBase + gearNorm * ch.cutoffSpan, t, 0.08);
-    engFilter.Q.setTargetAtTime(ch.q, t, 0.12);
-    lfoOsc.frequency.setTargetAtTime(ch.lfoRate, t, 0.25);
-    lfoGain.gain.setTargetAtTime(ch.lfoDepth, t, 0.25);
-    engGain.gain.setTargetAtTime(0.05 + Math.min(1, kmh / 240) * 0.13, t, 0.1);
-    screechFilter.frequency.setTargetAtTime(2400 + gearNorm * 1800, t, 0.1);
-    screechGain.gain.setTargetAtTime(fCar.isDrifting ? 0.3 : 0, t, fCar.isDrifting ? 0.035 : 0.1);
-  }
-
-  // ============================================================================
-  // 8. 2D ANIME SPEED LINES & GPS MINIMAP RENDERERS
-  // ============================================================================
-  const slCanvas = document.getElementById('speed-lines');
-  const slCtx = slCanvas.getContext('2d');
-  function resizeCanvases() {
-    slCanvas.width = window.innerWidth;
-    slCanvas.height = window.innerHeight;
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-  }
-  window.addEventListener('resize', resizeCanvases);
-  resizeCanvases();
-
-  function drawSpeedLines(speedKmh) {
-    if (!showSpeedLines || speedKmh < 165) {
-      slCanvas.style.opacity = '0';
-      return;
-    }
-    slCanvas.style.opacity = Math.min(0.65, (speedKmh - 165) / 85).toFixed(2);
-    const w = slCanvas.width;
-    const h = slCanvas.height;
-    const cx = w / 2;
-    const cy = h / 2;
-    slCtx.clearRect(0, 0, w, h);
-    slCtx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
-    slCtx.lineWidth = 2.2;
-
-    for (let i = 0; i < 36; i++) {
-      const ang = Math.random() * Math.PI * 2;
-      const rIn = Math.min(w, h) * (0.34 + Math.random() * 0.14);
-      const rOut = Math.max(w, h) * 0.75;
-      slCtx.beginPath();
-      slCtx.moveTo(cx + Math.cos(ang) * rIn, cy + Math.sin(ang) * rIn);
-      slCtx.lineTo(cx + Math.cos(ang) * rOut, cy + Math.sin(ang) * rOut);
-      slCtx.stroke();
-    }
-  }
-
-  // Minimap Pre-Sampled Path
-  const mmCanvas = document.getElementById('minimap');
-  const mmCtx = mmCanvas.getContext('2d');
-  const mmPoints = [];
-  for (let i = 0; i <= 150; i++) {
-    const p = trackCurve.getPointAt(i / 150);
-    mmPoints.push({ x: p.x, z: p.z });
-  }
-
-  function renderMinimap() {
-    mmCtx.clearRect(0, 0, 190, 190);
-    const mapScale = 0.115;
-    const ox = 98;
-    const oz = 98;
-
-    // Track outline
-    mmCtx.strokeStyle = '#000';
-    mmCtx.lineWidth = 7;
-    mmCtx.beginPath();
-    mmPoints.forEach((p, i) => {
-      const mx = ox + p.x * mapScale;
-      const mz = oz + p.z * mapScale;
-      if (i === 0) mmCtx.moveTo(mx, mz);
-      else mmCtx.lineTo(mx, mz);
-    });
-    mmCtx.closePath();
-    mmCtx.stroke();
-
-    mmCtx.strokeStyle = '#adb5bd';
-    mmCtx.lineWidth = 3.5;
-    mmCtx.stroke();
-
-    // Car Dots
-    racers.forEach((r, idx) => {
-      const pos = r.root.position;
-      const mx = ox + pos.x * mapScale;
-      const mz = oz + pos.z * mapScale;
-      mmCtx.fillStyle = r.colorHex;
-      mmCtx.strokeStyle = '#000';
-      mmCtx.lineWidth = 2;
-      mmCtx.beginPath();
-      mmCtx.arc(mx, mz, idx === focusedCarIdx ? 5.5 : 3.8, 0, Math.PI * 2);
-      mmCtx.fill();
-      mmCtx.stroke();
-    });
-  }
-
-  // ============================================================================
-  // 9. MAIN SIMULATION LOOP (AI STEERING, OVERTAKING, DRIFTING & BROADCAST CAM)
-  // ============================================================================
-  const clock = new THREE.Clock();
-  const smoothCamPos = new THREE.Vector3(220, 105, -550);
-  const smoothCamLook = new THREE.Vector3(220, 92, -520);
-
-  const roadNameEl = document.getElementById('road-name');
-  const landmarkSubEl = document.getElementById('landmark-sub');
-  const lbRowsEl = document.getElementById('lb-rows');
-  const speedValEl = document.getElementById('speed-val');
-  const gearBoxEl = document.getElementById('gear-box');
-  const rpmFillEl = document.getElementById('rpm-bar-fill');
-  const driftPillEl = document.getElementById('drift-pill');
-  const manualPillEl = document.getElementById('manual-pill');
-
-  function animate() {
-    requestAnimationFrame(animate);
-    const dt = Math.min(clock.getDelta(), 0.05);
-    const elapsed = clock.getElapsedTime();
-
-    // --- 9A. Update Racers (AI + optional manual drive with idle-timeout) ---
-    if (manualArmed && (elapsed - lastInputTime > MANUAL_TIMEOUT)) {
-      manualArmed = false;
-      setDriveLabel();
-    }
-    const manualNow = manualArmed;
-
-    racers.forEach(car => {
-      // Sample current & lookahead tangents to measure corner sharpness and slope
-      const tNow = car.t;
-      const tLook = (car.t + 0.016) % 1;
-      const tFar = (car.t + 0.032) % 1;
-      const tBank = (car.t + 0.025) % 1;
-
-      const tanNow = trackCurve.getTangentAt(tNow).normalize();
-      const tanLook = trackCurve.getTangentAt(tLook).normalize();
-      const tanFar = trackCurve.getTangentAt(tFar).normalize();
-      const tanBank = trackCurve.getTangentAt(tBank).normalize();
-
-      // Signed horizontal curvature for drift direction
-      const crossY = tanNow.x * tanLook.z - tanNow.z * tanLook.x;
-      const cornerSeverity = 1 - Math.max(0, tanNow.dot(tanFar)); // 0 on straight, higher on tight corners
-      const cornerBrake = cornerSeverity * 95;
-
-      // Corner banking (must match buildAsphaltCircuit so cars sit on the tilted road)
-      const bankCross = tanNow.x * tanBank.z - tanNow.z * tanBank.x;
-      const bank = THREE.MathUtils.clamp(-bankCross * 0.16, -0.18, 0.18);
-
-      const isManual = manualNow && car.idx === focusedCarIdx;
-      let throttleIn = 0, brakeIn = 0, steerIn = 0;
-
-      if (isManual) {
-        // --- Manual drive: W/Up throttle, S/Down brake, A-D or arrows steer ---
-        throttleIn = (keys.KeyW || keys.ArrowUp) ? 1 : 0;
-        brakeIn = (keys.KeyS || keys.ArrowDown) ? 1 : 0;
-        steerIn = ((keys.KeyA || keys.ArrowLeft) ? 1 : 0) - ((keys.KeyD || keys.ArrowRight) ? 1 : 0);
-        car.speed = THREE.MathUtils.clamp(car.speed + (throttleIn * 34 - brakeIn * 46 - 5) * dt, 8, 88);
-        car.lateralOffset = THREE.MathUtils.clamp(
-          car.lateralOffset - steerIn * 17 * dt * THREE.MathUtils.clamp(car.speed / 50, 0.35, 1),
-          -13, 13
-        );
-        car.targetLateral = car.lateralOffset;
-      } else {
-        // --- AI: dynamic rubber-banding + sector speed modulation ---
-        const waveBoost = Math.sin(elapsed * 0.65 + car.pacePhase) * 4.5;
-        const slopeBoost = -tanNow.y * 18; // Faster downhill on Canada Hill, slightly slower climbing
-        const targetSpeed = Math.max(38, car.baseSpeed + waveBoost + slopeBoost - cornerBrake);
-        car.speed = THREE.MathUtils.lerp(car.speed, targetSpeed, dt * 2.8);
-
-        // Overtaking & Lane Switching Avoidance AI
-        racers.forEach(other => {
-          if (other === car) return;
-          let dT = other.t - car.t;
-          if (dT < 0) dT += 1;
-          if (dT > 0 && dT < 0.018 && Math.abs(other.lateralOffset - car.lateralOffset) < 4.2) {
-            // Shift to opposite lane to execute clean overtake
-            const shiftDir = car.lateralOffset > 0 ? -1 : 1;
-            car.targetLateral = THREE.MathUtils.clamp(car.lateralOffset + shiftDir * 6.5, -12.5, 12.5);
-          }
-        });
-
-        // Gently drift back toward preferred racing line on corners
-        if (Math.random() < 0.01) {
-          car.targetLateral = THREE.MathUtils.clamp(car.targetLateral + (Math.random() - 0.5) * 4, -12, 12);
-        }
-        car.lateralOffset = THREE.MathUtils.lerp(car.lateralOffset, car.targetLateral, dt * 2.2);
-      }
-
-      // Advance along Miri circuit spline
-      const prevT = car.t;
-      car.t = (car.t + (car.speed * dt) / trackLength) % 1;
-      if (car.t < prevT) car.laps++;
-
-      // Compute 3D World Position + banked lateral lane offset
-      const centerPt = trackCurve.getPointAt(car.t);
-      const upVec = new THREE.Vector3(0, 1, 0);
-      const rightVec = new THREE.Vector3().crossVectors(tanNow, upVec).normalize();
-      if (Math.abs(bank) > 0.0001) {
-        const upSlope = new THREE.Vector3().crossVectors(rightVec, tanNow).normalize(); // = +up
-        rightVec.copy(rightVec).multiplyScalar(Math.cos(bank)).addScaledVector(upSlope, Math.sin(bank)).normalize();
-      }
-
-      const worldPos = centerPt.clone().addScaledVector(rightVec, car.lateralOffset);
-      car.root.position.copy(worldPos);
-
-      // Orient root along track tangent (including 3D elevation pitch) + corner banking roll.
-      // lookAt aims local +Z at the target, and the car's nose is -Z, so aim backwards along the tangent.
-      const lookTarget = worldPos.clone().sub(tanNow);
-      car.root.lookAt(lookTarget);
-      car.root.rotateZ(bank);
-
-      // Calculate Kansei Touge Drift Slip Angle (AI curvature or manual steer)
-      const desiredDrift = isManual
-        ? THREE.MathUtils.clamp(steerIn * 0.34 * THREE.MathUtils.clamp(car.speed / 60, 0, 1), -0.46, 0.46)
-        : THREE.MathUtils.clamp(crossY * 3.4, -0.46, 0.46);
-      car.isDrifting = Math.abs(desiredDrift) > 0.11;
-      car.driftAngle = THREE.MathUtils.lerp(car.driftAngle, car.isDrifting ? desiredDrift : 0, dt * 5.5);
-
-      car.chassis.rotation.y = car.driftAngle;
-      car.chassis.rotation.z = -car.driftAngle * 0.22; // Subtle suspension body roll
-      car.brakeFlare.visible = isManual ? (brakeIn > 0 || car.isDrifting) : cornerBrake > 15;
-
-      // Spin wheels & counter-steer front wheels
-      car.wheels.forEach(w => {
-        w.spinGroup.rotation.x -= car.speed * dt * 1.4;
-        if (w.isFront) {
-          w.steerPivot.rotation.y = -car.driftAngle * 0.65;
-        }
-      });
-
-      // Spawn cel-shaded tire smoke when drifting
-      if (car.isDrifting && Math.random() < 0.65) {
-        const rearSmokePos = worldPos.clone().addScaledVector(tanNow, -2.2);
-        emitDriftSmoke(rearSmokePos);
-      }
-    });
-
-    // --- 9B. Update Smoke Particles ---
-    smokePool.forEach(p => {
-      if (p.life > 0) {
-        p.life -= dt * 1.4;
-        p.mesh.position.addScaledVector(p.vel, dt);
-        p.mesh.scale.addScalar(dt * 2.4);
-        p.mesh.material.opacity = Math.max(0, p.life * 0.75);
-        if (p.life <= 0) p.mesh.visible = false;
-      }
-    });
-
-    // --- 9B2. Animated South China Sea waves & shoreline foam ---
-    for (let i = 0; i < seaPosAttr.count; i++) {
-      const ix = i * 3;
-      const wx = seaBasePos[ix];
-      const wz = seaBasePos[ix + 2];
-      seaPosAttr.setY(i,
-        0.55 * Math.sin(wx * 0.02 + elapsed * 1.2) +
-        0.45 * Math.sin(wz * 0.024 + elapsed * 0.7) +
-        0.25 * Math.sin((wx + wz) * 0.013 + elapsed * 1.9)
-      );
-    }
-    seaPosAttr.needsUpdate = true;
-    seaGeo.computeVertexNormals();
-    foamMat.opacity = foamBaseOpacity + Math.sin(elapsed * 0.9) * 0.15;
-    foamMat.map.offset.y = (elapsed * 0.03) % 1;
-
-    // --- 9C. Update TV Broadcast Camera Director ---
-    const fCar = racers[focusedCarIdx];
-    const fPos = fCar.root.position;
-    const fTan = trackCurve.getTangentAt(fCar.t).normalize();
-    const fRight = new THREE.Vector3().crossVectors(fTan, new THREE.Vector3(0, 1, 0)).normalize();
-
-    let activeMode = camModes[camModeIdx];
-    if (activeMode === 'AUTO TV DIRECTOR') {
-      directorTimer += dt;
-      if (directorTimer > 8.5) {
-        directorTimer = 0;
-        const subChoices = ['CHASE CAM', 'HELICOPTER CAM', 'TRACKSIDE TV', 'HOOD BUMPER CAM'];
-        activeSubCam = subChoices[Math.floor(Math.random() * subChoices.length)];
-      }
-      activeMode = activeSubCam;
-    }
-
-    let desiredCamPos = new THREE.Vector3();
-    let desiredCamLook = new THREE.Vector3();
-
-    if (activeMode === 'CHASE CAM') {
-      desiredCamPos.copy(fPos)
-        .addScaledVector(fTan, -12.5)
-        .add(new THREE.Vector3(0, 4.4, 0))
-        .addScaledVector(fRight, fCar.driftAngle * 3.5);
-      desiredCamLook.copy(fPos).addScaledVector(fTan, 16).add(new THREE.Vector3(0, 1.4, 0));
-      smoothCamPos.lerp(desiredCamPos, dt * 8.5);
-      smoothCamLook.lerp(desiredCamLook, dt * 12);
-    } else if (activeMode === 'HELICOPTER CAM') {
-      desiredCamPos.copy(fPos)
-        .addScaledVector(fTan, -28)
-        .addScaledVector(fRight, Math.sin(elapsed * 0.4) * 22)
-        .add(new THREE.Vector3(0, 26, 0));
-      desiredCamLook.copy(fPos).addScaledVector(fTan, 12);
-      smoothCamPos.lerp(desiredCamPos, dt * 3.5);
-      smoothCamLook.lerp(desiredCamLook, dt * 6);
-    } else if (activeMode === 'TRACKSIDE TV') {
-      // Snap a broadcast tripod slightly ahead on the shoulder of the current sector
-      const tripodT = (Math.floor(fCar.t * 18) / 18 + 0.025) % 1;
-      const tripodPt = trackCurve.getPointAt(tripodT);
-      const tripodTan = trackCurve.getTangentAt(tripodT).normalize();
-      const tripodRight = new THREE.Vector3().crossVectors(tripodTan, new THREE.Vector3(0, 1, 0)).normalize();
-      smoothCamPos.copy(tripodPt).addScaledVector(tripodRight, roadHalfWidth + 6.5).add(new THREE.Vector3(0, 4.5, 0));
-      smoothCamLook.lerp(fPos.clone().add(new THREE.Vector3(0, 1.2, 0)), dt * 15);
-    } else {
-      // HOOD BUMPER CAM
-      smoothCamPos.copy(fPos).addScaledVector(fTan, 1.2).add(new THREE.Vector3(0, 1.65, 0));
-      smoothCamLook.copy(fPos).addScaledVector(fTan, 35).add(new THREE.Vector3(0, 1.4, 0));
-    }
-
-    camera.position.copy(smoothCamPos);
-    camera.lookAt(smoothCamLook);
-
-    // --- 9D. Update HUD, Sector Landmarks & Leaderboard ---
-    const kmh = Math.round(fCar.speed * 3.15);
-    speedValEl.textContent = kmh;
-    const gear = Math.min(6, Math.max(1, Math.floor(kmh / 38)));
-    gearBoxEl.textContent = gear;
-    const rpmPct = 35 + ((kmh % 38) / 38) * 65;
-    rpmFillEl.style.width = `${rpmPct}%`;
-    driftPillEl.style.opacity = fCar.isDrifting ? '1' : '0';
-    manualPillEl.style.opacity = manualNow ? '1' : '0';
-
-    // Procedural synth: engine pitch follows focused car, BOV chirp on downshift
-    if (gear < prevGear) playBovChirp();
-    prevGear = gear;
-    updateAudioEngine(fCar, kmh);
-
-    const secInfo = getMiriSectorInfo(fCar.t);
-    roadNameEl.textContent = secInfo.road;
-    landmarkSubEl.textContent = `Landmark: ${secInfo.landmark}`;
-
-    // Sort Leaderboard by Lap + Spline Progress
-    const sorted = [...racers].sort((a, b) => (b.laps + b.t) - (a.laps + a.t));
-    const leaderScore = sorted[0].laps + sorted[0].t;
-    lbRowsEl.innerHTML = sorted.map((r, rank) => {
-      const gap = rank === 0 ? `LAP ${r.laps}` : `+${((leaderScore - (r.laps + r.t)) * 42).toFixed(1)}s`;
-      const activeCls = r.idx === focusedCarIdx ? 'active' : '';
-      return `<div class="lb-row ${activeCls}">
-        <span class="car-tag"><span>${rank + 1}.</span><span class="swatch" style="background:${r.colorHex}"></span><span>${r.name}</span></span>
-        <span>${gap}</span>
-      </div>`;
-    }).join('');
-
-    drawSpeedLines(kmh);
-    renderMinimap();
-    renderer.render(scene, camera);
-  }
-
-  animate();
-
-  // Debug/inspection hook (harmless in normal play)
-  window.__miri = { THREE, scene, camera, racers, trackCurve, renderer, asphaltRef: () => scene.getObjectByName('asphalt') };
-</script>
+<div id="start-overlay">
+  <div id="start-card">
+    <h1>MIRI <span class="g">GRAB</span><br /><span class="p">DELIVERY</span> RUSH</h1>
+    <div class="sub">Cel-shaded endless delivery rider &mdash; Miri, Sarawak</div>
+    <div id="controls-grid">
+      <div><b>AUTO</b> Self-playing: picks up &amp; delivers</div>
+      <div><b>WASD</b> Take over anytime</div>
+      <div><b>W / &uarr;</b> Throttle</div>
+      <div><b>S / &darr;</b> Brake / Drift</div>
+      <div><b>A D / &larr;&rarr;</b> Steer</div>
+      <div><b>C</b> Camera director</div>
+      <div><b>N</b> Sunset / Night touge</div>
+      <div><b>R</b> Tropical storm</div>
+      <div><b>X</b> Horn</div>
+      <div><b>M</b> Mute audio</div>
+    </div>
+    <button id="start-btn">START ENGINE</button>
+    <div class="disclaimer">Fan-made stylized tribute game. Not affiliated with Grab Holdings or any real business. All landmarks are procedural interpretations.</div>
+  </div>
+</div>
+
+<script type="module" src="./main.js"></script>
 </body>
 </html>
