@@ -419,6 +419,31 @@ export class World {
   }
 
   // ---- rendering -----------------------------------------------------------
+  // vertical ribbon along the road edge (raised kerb faces)
+  _buildKerb(lat, y0, y1) {
+    const verts = [], idx = [];
+    let base = 0;
+    for (const e of this.edges) {
+      const i0 = 1, i1 = Math.max(1, e.n - 1);
+      for (let i = i0; i <= i1; i++) {
+        const p = e.pos[i], r = e.right[i];
+        verts.push(p.x + r.x * lat, y0, p.z + r.z * lat);
+        verts.push(p.x + r.x * lat, y1, p.z + r.z * lat);
+      }
+      const rings = i1 - i0 + 1;
+      for (let k = 0; k < rings - 1; k++) {
+        const b = base + k * 2;
+        idx.push(b, b + 2, b + 1, b + 1, b + 2, b + 3);
+      }
+      base += rings * 2;
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    return g;
+  }
+
   _buildStrip(l0, l1, y) {
     const verts = [], idx = [];
     let base = 0;
@@ -491,7 +516,30 @@ export class World {
     this.group.add(ground);
 
     // ---- sea + beach ----
-    const sea = flatMesh(new THREE.PlaneGeometry(2800, 4600), PALETTE.seaBlue);
+    const seaTex = (() => {
+      const c = document.createElement('canvas');
+      c.width = c.height = 256;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#1a9cba';
+      ctx.fillRect(0, 0, 256, 256);
+      for (let i = 0; i < 130; i++) {
+        const y = Math.random() * 256;
+        const w = 20 + Math.random() * 90;
+        const x = Math.random() * 256;
+        ctx.strokeStyle = Math.random() < 0.5 ? 'rgba(255,255,255,0.16)' : 'rgba(10,90,120,0.25)';
+        ctx.lineWidth = 1 + Math.random() * 2;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.quadraticCurveTo(x + w * 0.5, y + (Math.random() - 0.5) * 8, x + w, y);
+        ctx.stroke();
+      }
+      const t = new THREE.CanvasTexture(c);
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.repeat.set(16, 40);
+      t.colorSpace = THREE.SRGBColorSpace;
+      return t;
+    })();
+    const sea = new THREE.Mesh(new THREE.PlaneGeometry(2800, 4600), toonMat(PALETTE.seaBlue, { map: seaTex }));
     sea.rotation.x = -Math.PI / 2;
     sea.position.set(COAST_X - 1400, -0.02, -100);
     this.group.add(sea);
@@ -520,6 +568,26 @@ export class World {
       const m = new THREE.Mesh(this._buildStrip(a, b, this.roadY - 0.005), shoulderMat);
       m.material.side = THREE.DoubleSide;
       this.group.add(m);
+    }
+
+    // raised kerbs + footpaths either side: gives the road a real edge profile
+    const kerbMat = toonMat(PALETTE.curbGray);
+    const walkMat = toonMat(0xb6bdb8);
+    for (const side of [-1, 1]) {
+      const kerb = new THREE.Mesh(this._buildKerb(side * 9.6, this.roadY, 0.17), kerbMat);
+      kerb.material.side = THREE.DoubleSide;
+      this.group.add(kerb);
+      const verge = new THREE.Mesh(this._buildStrip(side * 9.6, side * 10.35, 0.17), kerbMat);
+      verge.material.side = THREE.DoubleSide;
+      this.group.add(verge);
+      // footpath on the far side of the longkang drain
+      const walk = new THREE.Mesh(this._buildStrip(side * 11.7, side * 16.4, 0.15), walkMat);
+      walk.material.side = THREE.DoubleSide;
+      this.group.add(walk);
+      // kerb face for the footpath edge
+      const walkKerb = new THREE.Mesh(this._buildKerb(side * 11.7, 0.05, 0.15), kerbMat);
+      walkKerb.material.side = THREE.DoubleSide;
+      this.group.add(walkKerb);
     }
 
     // ---- junction slabs ----

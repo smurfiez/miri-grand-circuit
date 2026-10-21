@@ -59,6 +59,15 @@ const TEMPLATE = [
 const _up = new THREE.Vector3();
 const _v = new THREE.Vector3();
 
+// swept 1-D overlap window, used for traffic collision prediction
+function hitWindow(p, v, half) {
+  if (Math.abs(v) < 1e-4) return Math.abs(p) < half ? [0, 1e9] : null;
+  let t1 = (-half - p) / v;
+  let t2 = (half - p) / v;
+  if (t1 > t2) { const t = t1; t1 = t2; t2 = t; }
+  return [Math.max(0, t1), t2];
+}
+
 function addWheelSet(group, wheels, halfTrack, r, width, zs) {
   for (const z of zs) {
     for (const side of [-1, 1]) {
@@ -244,7 +253,7 @@ export class Traffic {
     car.s = clamp(entryS + over * link.dir, 0, ne.length);
   }
 
-  update(dt) {
+  update(dt, riders = []) {
     this.time += dt;
     const world = this.world;
     const cars = this.cars;
@@ -252,6 +261,7 @@ export class Traffic {
     for (const car of cars) {
       // --- car-following: nearest vehicle ahead on the same street + direction ---
       let target = car.baseSpeed;
+      let respond = 1.2;
       let ahead = null, best = Infinity;
       for (const o of cars) {
         if (o === car || o.edgeId !== car.edgeId || o.dir !== car.dir) continue;
@@ -265,7 +275,72 @@ export class Traffic {
         if (best < 14 + car.len) target = Math.min(target, ahead.speed * 0.95);
         if (gap < 3) target = 0;
       }
-      car.speed = lerp(car.speed, target, Math.min(1, dt * 1.2));
+
+      // --- swept prediction: other cars (incl. crossing at junctions) + riders ---
+      const frame = world.travelFrame(car.edgeId, car.s, car.dir);
+      const tan = frame.tan, right = frame.right;
+      const myVx = tan.x * car.speed, myVz = tan.z * car.speed;
+      const myEdge = world.edges[car.edgeId];
+      const myNode = car.dir > 0 ? myEdge.b : myEdge.a;
+      const myD = car.dir > 0 ? myEdge.length - car.s : car.s;
+
+      const scan = (ox, oz, ovx, ovz, halfLen, halfLat) => {
+        const rx = ox - car.group.position.x, rz = oz - car.group.position.z;
+        const pA = rx * tan.x + rz * tan.z;
+        if (pA < -2.5) return null;
+        const dvx = ovx - myVx, dvz = ovz - myVz;
+        const pL = rx * right.x + rz * right.z;
+        const vA = dvx * tan.x + dvz * tan.z;
+        const vL = dvx * right.x + dvz * right.z;
+        const a = hitWindow(pA, vA, halfLen);
+        const b = hitWindow(pL, vL, halfLat);
+        if (!a || !b) return null;
+        const t0 = Math.max(0, Math.max(a[0], b[0]));
+        const t1 = Math.min(a[1], b[1]);
+        if (t1 < 0 || t0 > 2.4) return null;
+        return t0;
+      };
+
+      let threatT = Infinity;
+      for (const o of cars) {
+        if (o === car) continue;
+        // opposite lanes on the same street pass each other safely
+        if (o.edgeId === car.edgeId && o.dir !== car.dir) continue;
+        const oe = world.edges[o.edgeId];
+        const of = world.travelFrame(o.edgeId, o.s, o.dir);
+        if (o.edgeId !== car.edgeId) {
+          const oNode = o.dir > 0 ? oe.b : oe.a;
+          if (oNode !== myNode) continue;
+          const oD = o.dir > 0 ? oe.length - o.s : o.s;
+          // right of way: whoever is closer to the junction goes first,
+          // ties broken by spawn index so two cars never deadlock
+          if (myD < oD - 1 || (Math.abs(myD - oD) <= 1 && car.idx < o.idx)) continue;
+        }
+        const t = scan(
+          o.group.position.x, o.group.position.z,
+          of.tan.x * o.speed, of.tan.z * o.speed,
+          (car.len + o.len) * 0.5 + 0.9,
+          (car.width + o.width) * 0.5 + 0.4
+        );
+        if (t !== null && t < threatT) threatT = t;
+      }
+      for (const r of riders) {
+        if (!r || !r.group) continue;
+        const rf = world.travelFrame(r.edgeId, r.s, r.dir);
+        const t = scan(
+          r.group.position.x, r.group.position.z,
+          rf.tan.x * r.speed, rf.tan.z * r.speed,
+          car.len * 0.5 + 1.6,
+          car.width * 0.5 + 0.9
+        );
+        if (t !== null && t < threatT) threatT = t;
+      }
+      if (threatT < 2.4) {
+        respond = 7;
+        target = Math.min(target, Math.max(0, threatT * 16));
+      }
+
+      car.speed = lerp(car.speed, target, Math.min(1, dt * respond));
       if (car.speed < 0) car.speed = 0; // never reverse
 
       // --- advance along the street, turning at the junction when s runs out ---

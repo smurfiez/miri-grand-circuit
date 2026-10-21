@@ -19,6 +19,16 @@ const wrapAngle = (a) => {
 };
 const flatDist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 
+// Time window during which a 1-D position p with relative velocity v is inside
+// |p + v t| < half. Used for swept collision prediction.
+function hitWindow(p, v, half) {
+  if (Math.abs(v) < 1e-4) return Math.abs(p) < half ? [0, 1e9] : null;
+  let t1 = (-half - p) / v;
+  let t2 = (half - p) / v;
+  if (t1 > t2) { const t = t1; t1 = t2; t2 = t; }
+  return [Math.max(0, t1), t2];
+}
+
 // ---------------------------------------------------------------------------
 // OrderSystem — spawns food orders, auto-assigns them, tracks pickup/dropoff
 // ---------------------------------------------------------------------------
@@ -34,6 +44,16 @@ export class OrderSystem {
 
   get playerOrders() {
     return this.orders.filter((o) => o.assignee && o.assignee.isPlayer);
+  }
+
+  // A rider only counts as "at" a stop when it is on that same street, close to
+  // the exact kerbside point. A flat-radius check let riders collect food from a
+  // parallel road, which looked like teleporting instead of riding down to the shop.
+  _arrived(r, wp) {
+    if (r.edgeId !== wp.edgeId) return false;
+    const along = (wp.s - r.s) * r.dir;
+    if (along < -4 || along > 8) return false;
+    return flatDist(r.group.position, wp.pos) < 9;
   }
 
   update(dt, riders) {
@@ -80,26 +100,41 @@ export class OrderSystem {
       let removed = false;
       if (r && r.order === o) {
         if (r.phase === 'toPickup') {
-          if (flatDist(r.group.position, o.from.pos) < 14) {
+          if (this._arrived(r, o.from)) {
+            // pull up at the shop, kill the engine and let the hand-off play out
             r.phase = 'pickupWait';
-            r.phaseT = 1.2;
+            r.phaseT = 1.4;
             r.speed = 0;
+            r.latVel = 0;
             r.clearPath();
-            this.onEvent('picked', { order: o, rider: r });
           }
         } else if (r.phase === 'pickupWait') {
+          r.speed = 0;
           r.phaseT -= dt;
           if (r.phaseT <= 0) {
+            r.hasParcel = true;
             r.phase = 'toDropoff';
             r.setTarget(o.to);
+            this.onEvent('picked', { order: o, rider: r });
           }
         } else if (r.phase === 'toDropoff') {
-          if (flatDist(r.group.position, o.to.pos) < 14) {
+          if (this._arrived(r, o.to)) {
+            r.phase = 'deliverWait';
+            r.phaseT = 1.2;
+            r.speed = 0;
+            r.latVel = 0;
+            r.clearPath();
+          }
+        } else if (r.phase === 'deliverWait') {
+          r.speed = 0;
+          r.phaseT -= dt;
+          if (r.phaseT <= 0) {
             const rm = round2(o.rm * (1 + 0.12 * this.streak));
             const xp = Math.round(o.xp * (1 + 0.12 * this.streak));
             this.streak++;
             this.onEvent('delivered', { order: o, rider: r, rm, xp, streak: this.streak });
             r.order = null;
+            r.hasParcel = false;
             r.phase = 'cruise';
             r.clearPath();
             this.orders.splice(i, 1);
@@ -112,6 +147,7 @@ export class OrderSystem {
         this.onEvent('expired', { order: o, rider: r || null });
         if (r && r.order === o) {
           r.order = null;
+          r.hasParcel = false;
           r.phase = 'cruise';
           r.clearPath();
         }
@@ -146,11 +182,15 @@ export class OrderSystem {
     const to = this._pick(from, 150, 1100);
     const cityDistance = flatDist(from.roadPos, to.roadPos);
     const rm = round2(4 + cityDistance * 0.02 + rand(0, 4));
+    // stops sit in the kerbside lane on the landmark's side, so riders actually
+    // pull over to the shop instead of stopping in the middle of the road
+    const fromPos = this.world.edgePoint(from.edgeId, from.s, from.side * 5.6);
+    const toPos = this.world.edgePoint(to.edgeId, to.s, to.side * 5.6);
     const order = {
       id: this._nextId++,
       food: choice(FOODS),
-      from: { name: from.name, edgeId: from.edgeId, s: from.s, side: from.side, pos: from.roadPos.clone() },
-      to: { name: to.name, edgeId: to.edgeId, s: to.s, side: to.side, pos: to.roadPos.clone() },
+      from: { name: from.name, edgeId: from.edgeId, s: from.s, side: from.side, pos: fromPos },
+      to: { name: to.name, edgeId: to.edgeId, s: to.s, side: to.side, pos: toPos },
       rm,
       xp: Math.round(rm * 3),
       state: 'open',
@@ -188,6 +228,7 @@ export class Rider {
     this.phase = 'cruise';             // 'cruise'|'toPickup'|'pickupWait'|'toDropoff'|'deliverWait'
     this.phaseT = 0;
     this.order = null;
+    this.hasParcel = false;            // food box riding on the rack
     this.path = null;                  // A* legs [{edgeId, dir, toS}]
     this.pathIdx = 0;
     this.odo = 0;                      // metres ridden (HUD odometer)
@@ -267,6 +308,13 @@ export class Rider {
     label.position.set(0, 0.41, -0.815);
     label.rotation.y = Math.PI;
     chassis.add(label);
+
+    // food parcel appears on the rack once the order is picked up
+    const parcel = box(0.4, 0.36, 0.36, 0xc98f5a);
+    parcel.position.set(0, 0.73, -0.64);
+    parcel.visible = false;
+    chassis.add(parcel);
+    this.parcel = parcel;
 
     // rider figure
     const helmetCol = this.isPlayer ? PALETTE.white : jacketColor;
@@ -488,6 +536,7 @@ export class Rider {
       if (this.autopilot) this._stepAI(dt, cars, others);
       else this._stepPlayer(dt);
     } else this._stepAI(dt, cars, others);
+    if (this.parcel) this.parcel.visible = this.hasParcel;
     this._collide(cars);
     // soft lateral clamp (push back + scrub speed)
     if (Math.abs(this.lateral) > 8.4) {
@@ -577,54 +626,72 @@ export class Rider {
     if (this.order && (this.phase === 'toPickup' || this.phase === 'toDropoff')) {
       const wp = this.phase === 'toPickup' ? this.order.from : this.order.to;
       const d = flatDist(myPos, wp.pos);
-      if (d < 45) targetSpeed = Math.min(targetSpeed, Math.max(4.5, d * 0.55));
+      if (d < 50) targetSpeed = Math.min(targetSpeed, clamp(d * 0.42, 0, 12));
       // landmark.side is in the canonical a->b frame; flip it for the travel direction
-      targetLat = clamp((wp.side || -1) * this.dir * 5, -6.8, 6.8);
+      targetLat = clamp((wp.side || -1) * this.dir * 5.6, -6.8, 6.8);
     } else if (this.phase === 'pickupWait' || this.phase === 'deliverWait') {
       targetSpeed = 0; // self-stop while OrderSystem counts phaseT
       targetLat = this.lateral;
       holding = true;
     }
 
-    // traffic avoid: only obstacles ahead in our own travel frame, works for
-    // oncoming vehicles and vehicles on the crossing street alike
+    // Swept collision prediction: project both bodies forward and look for the
+    // first time the two boxes overlap. This catches oncoming cars, crossing
+    // traffic at junctions and slow scooters, instead of only what is dead ahead.
     if (!holding) {
-      let avoidLat = 0, avoidD = Infinity, avoidSpeed = 0;
+      const myVx = tan.x * this.speed + right.x * this.latVel;
+      const myVz = tan.z * this.speed + right.z * this.latVel;
+      const scan = (ox, oz, ovx, ovz, halfLen, halfLat) => {
+        const rx = ox - myPos.x, rz = oz - myPos.z;
+        const ahead = rx * tan.x + rz * tan.z;
+        if (ahead < -3) return null;
+        const dvx = ovx - myVx, dvz = ovz - myVz;
+        const pA = ahead;
+        const vA = dvx * tan.x + dvz * tan.z;
+        const pL = rx * right.x + rz * right.z;
+        const vL = dvx * right.x + dvz * right.z;
+        const a = hitWindow(pA, vA, halfLen);
+        const b = hitWindow(pL, vL, halfLat);
+        if (!a || !b) return null;
+        const t0 = Math.max(0, Math.max(a[0], b[0]));
+        const t1 = Math.min(a[1], b[1]);
+        if (t1 < 0 || t0 > 2.4) return null;
+        return { t: t0, lat: pL + vL * t0 };
+      };
+
+      let threat = null;
       for (const car of trafficCars) {
         const cp = car.group.position;
-        const dx = cp.x - myPos.x, dz = cp.z - myPos.z;
-        const along = dx * tan.x + dz * tan.z;
-        const across = dx * right.x + dz * right.z;
-        const halfLat = (car.width || 1.8) * 0.5 + 0.9;
-        if (along > 0 && along < 22 && Math.abs(across) < halfLat && along < avoidD) {
-          avoidD = along;
-          avoidLat = across;
-          avoidSpeed = car.speed;
-        }
+        const cf = this.world.travelFrame(car.edgeId, car.s, car.dir);
+        const th = scan(
+          cp.x, cp.z,
+          cf.tan.x * car.speed, cf.tan.z * car.speed,
+          car.len * 0.5 + 1.5,
+          (car.width || 1.8) * 0.5 + 0.95
+        );
+        if (th && (!threat || th.t < threat.t)) threat = { ...th, halfLat: (car.width || 1.8) * 0.5 };
       }
-      if (avoidD < Infinity) {
-        targetLat = swerveLane(avoidLat, 2.9);
-        if (avoidD < 10) targetSpeed = Math.min(targetSpeed, Math.max(avoidSpeed, 6));
-      }
-    }
-
-    // rider avoid: swing around a slower scooter ahead, then match their pace
-    if (!holding && riders.length > 1) {
-      let blockLat = 0, blockD = Infinity, blockSpeed = 0;
       for (const o of riders) {
         if (o === this) continue;
-        const dx = o.group.position.x - myPos.x, dz = o.group.position.z - myPos.z;
-        const along = dx * tan.x + dz * tan.z;
-        const across = dx * right.x + dz * right.z;
-        if (along > 0.5 && along < 16 && Math.abs(across) < 2.4 && along < blockD) {
-          blockD = along;
-          blockLat = across;
-          blockSpeed = o.speed;
-        }
+        const of = this.world.travelFrame(o.edgeId, o.s, o.dir);
+        const th = scan(
+          o.group.position.x, o.group.position.z,
+          of.tan.x * o.speed, of.tan.z * o.speed,
+          1.5, 1.05
+        );
+        if (th && (!threat || th.t < threat.t)) threat = { ...th, halfLat: 0.9 };
       }
-      if (blockD < Infinity) {
-        targetLat = swerveLane(blockLat, 2.6);
-        if (blockD < 8) targetSpeed = Math.min(targetSpeed, Math.max(blockSpeed * 0.92, 4));
+
+      if (threat) {
+        // dodge to the side we already lean towards, keeping a scooter-width gap
+        const side = Math.sign(this.lateral - threat.lat) || (this.lateral > 0 ? -1 : 1);
+        targetLat = swerveLane(threat.lat, threat.halfLat + 1.9);
+        if (threat.t < 0.7) targetSpeed = Math.min(targetSpeed, 1.5);
+        else if (threat.t < 1.5) targetSpeed = Math.min(targetSpeed, 7);
+        // never throw away all 8 m of road: brake, don't jump the drain
+        if (Math.abs(targetLat - threat.lat) < threat.halfLat + 1.1) {
+          targetLat = clamp(threat.lat + side * (threat.halfLat + 2.1), -6.8, 6.8);
+        }
       }
     }
 

@@ -8,6 +8,10 @@ import { RiderSystem, OrderSystem } from './rider.js';
 import { Traffic } from './traffic.js';
 import { AudioEngine } from './audio.js';
 import { clamp, lerp, rmFmt } from './shared.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 const $ = (id) => document.getElementById(id);
 const hud = {
@@ -19,13 +23,26 @@ const hud = {
 };
 
 // ---------------- renderer / scene ----------------
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.06;
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 5000);
+
+// filmic pipeline: MSAA scene pass -> soft neon bloom -> tone-mapped output
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloomPass = new UnrealBloomPass(
+  new THREE.Vector2(window.innerWidth, window.innerHeight), 0.52, 0.62, 0.9
+);
+composer.addPass(bloomPass);
+composer.addPass(new OutputPass());
 
 // ---------------- gradient sky dome + sun ----------------
 function skyTexture(stops) {
@@ -86,6 +103,48 @@ moonDisc.visible = false;
 moonDisc.raycast = () => {};
 skyDome.add(moonDisc);
 
+// drifting tropical cloud banks, painted into one shared sprite material
+const cloudMat = (() => {
+  const c = document.createElement('canvas');
+  c.width = 512; c.height = 256;
+  const g = c.getContext('2d');
+  g.clearRect(0, 0, 512, 256);
+  for (let i = 0; i < 34; i++) {
+    const x = 40 + Math.random() * 432;
+    const y = 150 + Math.random() * 64;
+    const r = 22 + Math.random() * 58;
+    const grad = g.createRadialGradient(x, y, 1, x, y, r);
+    const a = 0.1 + Math.random() * 0.2;
+    grad.addColorStop(0, `rgba(255,255,255,${a})`);
+    grad.addColorStop(0.65, `rgba(255,250,240,${a * 0.5})`);
+    grad.addColorStop(1, 'rgba(255,245,235,0)');
+    g.fillStyle = grad;
+    g.beginPath();
+    g.arc(x, y, r, 0, Math.PI * 2);
+    g.fill();
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return new THREE.SpriteMaterial({
+    map: tex, transparent: true, opacity: 0.55, depthWrite: false, fog: false,
+  });
+})();
+const clouds = [];
+for (let i = 0; i < 14; i++) {
+  const s = new THREE.Sprite(cloudMat);
+  const ang = (i / 14) * Math.PI * 2 + Math.random() * 0.4;
+  const r = 2100 + Math.random() * 500;
+  s.position.set(Math.cos(ang) * r, 240 + Math.random() * 560, Math.sin(ang) * r);
+  const w = 900 + Math.random() * 800;
+  s.scale.set(w, w * 0.36, 1);
+  s.userData.ang = ang;
+  s.userData.r = r;
+  s.userData.spin = 0.0015 + Math.random() * 0.0018;
+  s.raycast = () => {};
+  skyDome.add(s);
+  clouds.push(s);
+}
+
 const PALETTES = {
   sunset: {
     sky: 0xffc98a, fog: 0xffd9a8, fogNear: 260, fogFar: 2700,
@@ -110,7 +169,19 @@ const hemi = new THREE.HemisphereLight(0xffe2b8, 0x6a7f5a, 0.95);
 const ambient = new THREE.AmbientLight(0xffffff, 0.32);
 const dir = new THREE.DirectionalLight(0xffd29a, 1.35);
 dir.position.set(400, 500, 200);
-scene.add(hemi, ambient, dir);
+// a tight shadow camera that rides along with the player keeps 2K shadows crisp
+dir.castShadow = true;
+dir.shadow.mapSize.set(2048, 2048);
+dir.shadow.camera.left = -95;
+dir.shadow.camera.right = 95;
+dir.shadow.camera.top = 95;
+dir.shadow.camera.bottom = -95;
+dir.shadow.camera.near = 5;
+dir.shadow.camera.far = 420;
+dir.shadow.bias = -0.0006;
+dir.shadow.normalBias = 0.03;
+scene.add(hemi, ambient, dir, dir.target);
+const sunDir = new THREE.Vector3(0.6, 0.75, 0.3).normalize();
 
 function applyPalette(p) {
   scene.background = scene.background || new THREE.Color();
@@ -124,6 +195,7 @@ function applyPalette(p) {
   ambient.intensity = p.ambInt;
   dir.color.set(p.dirColor); dir.intensity = p.dirInt;
   dir.position.set(...p.dirPos);
+  sunDir.copy(dir.position).normalize();
 }
 applyPalette(PALETTES.sunset);
 scene.fog = new THREE.Fog(PALETTES.sunset.fog, PALETTES.sunset.fogNear, PALETTES.sunset.fogFar);
@@ -146,6 +218,22 @@ const riderSystem = new RiderSystem(scene, world, 8, {
 const player = riderSystem.player;
 
 const traffic = new Traffic(scene, world, 16);
+
+// real-time sun shadows for the whole cast, skipping the inverted-hull ink
+// outlines (they are back-side shells and would smear the shadow map)
+function enableShadows(root) {
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    if (o.material && o.material.side === THREE.BackSide) return;
+    o.castShadow = !!(o.geometry && o.geometry.type !== 'PlaneGeometry');
+    o.receiveShadow = true;
+  });
+}
+enableShadows(world.group);
+enableShadows(scenery.group);
+enableShadows(landmarks.group);
+for (const r of riderSystem.riders) enableShadows(r.group);
+for (const c of traffic.cars) enableShadows(c.group);
 
 const orders = new OrderSystem(world, onOrderEvent);
 const audio = new AudioEngine();
@@ -277,6 +365,8 @@ function updateTod(dt) {
     riderSystem.setNight(on);
     traffic.setNight && traffic.setNight(on);
     audio.setNight(on);
+    cloudMat.color.set(on ? 0x6c7fae : 0xffffff);
+    cloudMat.opacity = on ? 0.2 : 0.55;
     hud.btnTime.textContent = on ? 'SUNSET' : 'NIGHT';
     hud.btnTime.classList.toggle('on', on);
     pushTicker(on ? 'Night touge mode — neon Miri skyline is ON' : 'Golden Miri sunset restored');
@@ -358,8 +448,20 @@ function directorUpdate(dt) {
 
   // keep the sky dome and sun anchored to the camera
   skyDome.position.copy(camera.position);
-  sunDisc.position.copy(camera.position).addScaledVector(_v1.copy(dir.position).normalize(), 2600);
+  sunDisc.position.copy(camera.position).addScaledVector(sunDir, 2600);
   sunDisc.lookAt(camera.position);
+
+  // clouds drift slowly across the dome
+  for (const c of clouds) {
+    c.userData.ang += c.userData.spin * dt;
+    c.position.x = Math.cos(c.userData.ang) * c.userData.r;
+    c.position.z = Math.sin(c.userData.ang) * c.userData.r;
+  }
+
+  // the shadow volume follows the rider so the nearest blocks stay sharp
+  dir.target.position.set(pos.x, 0, pos.z);
+  dir.position.copy(dir.target.position).addScaledVector(sunDir, 240);
+  dir.target.updateMatrixWorld();
 }
 function cycleCam() {
   state.camMode = (state.camMode + 1) % CAM_MODES.length;
@@ -650,6 +752,8 @@ window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(window.innerWidth, window.innerHeight);
+  bloomPass.resolution.set(window.innerWidth, window.innerHeight);
 });
 
 // ---------------- main loop ----------------
@@ -661,16 +765,20 @@ renderer.setAnimationLoop(() => {
   readPlayerInput(dt);
   riderSystem.update(dt, traffic.cars);
   orders.update(dt, riderSystem.riders);
-  traffic.update(dt);
+  traffic.update(dt, riderSystem.riders);
   const pose = player.getPose();
   directorUpdate(dt);
   updateTod(dt);
   updateBeacons(dt, pose);
   updateRain(dt);
+  // tide-like scroll on the sea surface
+  if (world.seaMesh && world.seaMesh.material.map) {
+    world.seaMesh.material.map.offset.y -= dt * 0.006;
+  }
   audio.setEngine(clamp(player.speed / 33, 0, 1), player.isDrifting);
   audio.update(dt, pose.pos, world);
   updateHUD(dt, pose);
-  renderer.render(scene, camera);
+  composer.render();
 });
 
 // debug / inspection hook (kept from the Miri Grand Circuit convention)

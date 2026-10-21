@@ -20,6 +20,12 @@
   body { font-family: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif; }
   canvas { display: block; }
 
+  /* subtle lens vignette so the 3D frame reads like a broadcast shot */
+  #vignette {
+    position: fixed; inset: 0; z-index: 5; pointer-events: none;
+    background: radial-gradient(ellipse at 50% 46%, rgba(0,0,0,0) 50%, rgba(8,4,10,0.22) 76%, rgba(8,4,10,0.52) 100%);
+  }
+
   #hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; color: #fff; }
 
   /* ---------- top-left identity ---------- */
@@ -225,6 +231,7 @@
 </script>
 </head>
 <body>
+<div id="vignette"></div>
 <div id="hud">
   <div id="id-box">
     <div class="live-pill"><span class="dot"></span>LIVE</div>
