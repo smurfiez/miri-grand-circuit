@@ -387,8 +387,12 @@ export class Landmarks {
 
   // ---- Bulatan Park roundabout garden ----
   _bulatanPark() {
-    const a = this._anchor('Bulatan Park');
-    const g = this._site(a, 30);
+    const rb = this.world.roundabouts.find((r) => r.name === 'Bulatan Park');
+    if (!rb) return;
+    // the garden now lives on the roundabout's centre island
+    const g = new THREE.Group();
+    g.position.set(rb.centerNode.x, 0.17, rb.centerNode.z);
+    this.group.add(g);
 
     const plaza = cyl(17, 17, 0.3, 0xd8d2c4, { seg: 32, outline: false });
     plaza.position.y = 0.15;

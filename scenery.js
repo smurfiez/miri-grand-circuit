@@ -34,6 +34,12 @@ export class Scenery {
     return s < tol || s > edge.length - tol;
   }
 
+  // pick a normal street edge, never the one-way roundabout ring arcs
+  _randomEdge(rng) {
+    const pool = this.world.edges.filter((e) => !e.noSurface);
+    return pool[Math.floor(rng() * pool.length)];
+  }
+
   // Reject spots where a 21 m lateral offset would sit on another street
   _clearOfOtherRoad(edgeId, pos, margin = 26) {
     const p = this.world.projectToRoad(pos.x, pos.z);
@@ -70,7 +76,7 @@ export class Scenery {
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), sc = new THREE.Vector3(), p = new THREE.Vector3();
     let fi = 0;
     for (let i = 0; i < N; i++) {
-      const edge = this.world.edges[Math.floor(rng() * this.world.edges.length)];
+      const edge = this._randomEdge(rng);
       const s = 8 + rng() * (edge.length - 16);
       const side = rng() < 0.5 ? -1 : 1;
       const lat = side * (11.5 + rng() * 6);
@@ -228,6 +234,7 @@ export class Scenery {
     const q = new THREE.Quaternion();
 
     for (const edge of this.world.edges) {
+      if (edge.noSurface) continue; // roundabout ring is handled by the roundabout itself
       const total = Math.floor(edge.length / seg);
       for (let i = 0; i < total; i++) {
         const s = i * seg + seg * 0.5;
@@ -301,6 +308,7 @@ export class Scenery {
     const q = new THREE.Quaternion();
     let n = 0;
     for (const edge of this.world.edges) {
+      if (edge.noSurface) continue;
       const per = Math.max(1, Math.floor(edge.length / spacing));
       const gap = edge.length / per;
       for (let i = 0; i < per; i++) {
@@ -455,6 +463,7 @@ export class Scenery {
     const pts = [];
     let n = 0;
     for (const edge of this.world.edges) {
+      if (edge.noSurface) continue;
       const per = Math.max(1, Math.floor(edge.length / spacing));
       const gap = edge.length / per;
       let prev = null;
@@ -548,7 +557,7 @@ export class Scenery {
     const bins = new THREE.InstancedMesh(binGeo, binMat, binCount);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), p = new THREE.Vector3();
     for (let i = 0; i < bushCount; i++) {
-      const edge = this.world.edges[Math.floor(rng() * this.world.edges.length)];
+      const edge = this._randomEdge(rng);
       const s = 6 + rng() * (edge.length - 12);
       const side = rng() < 0.5 ? -1 : 1;
       p.copy(this.world.edgePoint(edge.id, s, side * rand(10.4, 26)));
@@ -559,7 +568,7 @@ export class Scenery {
       bushes.setMatrixAt(i, m);
     }
     for (let i = 0; i < binCount; i++) {
-      const edge = this.world.edges[Math.floor(rng() * this.world.edges.length)];
+      const edge = this._randomEdge(rng);
       const s = 6 + rng() * (edge.length - 12);
       const side = rng() < 0.5 ? -1 : 1;
       p.copy(this.world.edgePoint(edge.id, s, side * 10.0));

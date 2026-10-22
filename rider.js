@@ -238,6 +238,7 @@ export class Rider {
     this.time = rand(0, 100);
     this._wanderSeed = rand(0, Math.PI * 2);
     this._lastBump = -10;
+    this._uTurnAfter = rand(8, 24);     // earliest time a cruise U-turn may happen
     this._tmp = new THREE.Vector3();
     const f = world.travelFrame(this.edgeId, this.s, this.dir);
     this.visTan = f.tan.clone();
@@ -494,9 +495,18 @@ export class Rider {
     }
     // cruise: take a random outgoing street, keeping as straight as possible
     const e = world.edges[this.edgeId];
-    const node = this.dir > 0 ? e.b : e.a;
+    const nodeIndex = this.dir > 0 ? e.b : e.a;
+    const node = world.nodes[nodeIndex];
+    // occasional legal U-turn at a junction: never inside the roundabout ring,
+    // and never across a red light
+    if (!node.ring && !e.oneWay && !world.isRed(this.edgeId, this.dir) &&
+        this.time > this._uTurnAfter && Math.random() < 0.14) {
+      this._uTurnAfter = this.time + rand(20, 40);
+      this._switchRoad(this.edgeId, -this.dir);
+      return;
+    }
     const tan = world.travelFrame(this.edgeId, this.s, this.dir).tan;
-    const link = world.randomSuccessor(node, this.edgeId, tan);
+    const link = world.randomSuccessor(nodeIndex, this.edgeId, tan);
     if (!link) {
       this.dir *= -1; // dead end safety net
       return;
@@ -635,6 +645,17 @@ export class Rider {
       holding = true;
     }
 
+    // street law: pull up at the stop line while the junction light is red
+    const sig = world.signalByApproach.get(this.edgeId + '|' + this.dir);
+    if (sig && !holding) {
+      const se = world.edges[this.edgeId];
+      const stopS = this.dir > 0 ? se.length - 19 : 19;
+      const d = (stopS - this.s) * this.dir;
+      if (d > 0 && d < 34 && world.isRed(this.edgeId, this.dir)) {
+        targetSpeed = Math.min(targetSpeed, d < 4 ? 0 : Math.max(0, (d - 3) * 2.4));
+      }
+    }
+
     // Swept collision prediction: project both bodies forward and look for the
     // first time the two boxes overlap. This catches oncoming cars, crossing
     // traffic at junctions and slow scooters, instead of only what is dead ahead.
@@ -767,7 +788,7 @@ export class RiderSystem {
     for (let i = 0; i < nAI; i++) {
       // spread the AI riders across the street network in both directions
       const edge = world.edges[(i * 7 + 3) % world.edges.length];
-      const dir = i % 2 === 0 ? 1 : -1;
+      const dir = edge.oneWay ? 1 : (i % 2 === 0 ? 1 : -1);
       const ai = new Rider(world, {
         isPlayer: false,
         name: choice(RIDER_NAMES),

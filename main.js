@@ -765,6 +765,7 @@ renderer.setAnimationLoop(() => {
   readPlayerInput(dt);
   riderSystem.update(dt, traffic.cars);
   orders.update(dt, riderSystem.riders);
+  world.updateSignals(dt);
   traffic.update(dt, riderSystem.riders);
   const pose = player.getPose();
   directorUpdate(dt);

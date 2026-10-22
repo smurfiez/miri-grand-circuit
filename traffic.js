@@ -164,6 +164,7 @@ export class Traffic {
     this.world = world;
     this.cars = [];
     this.time = 0;
+    this.uTurns = 0;   // legal U-turns performed (diagnostics / HUD-free counter)
 
     // --- spawn plan: lane-appropriate types, buses capped at 3 ---
     const plan = [];
@@ -181,7 +182,7 @@ export class Traffic {
       const [type, lane] = plan[i];
       // spread cars over the street network in both directions
       const edge = world.edges[(i * 5 + 1) % world.edges.length];
-      const dir = i % 2 === 0 ? 1 : -1;
+      const dir = edge.oneWay ? 1 : (i % 2 === 0 ? 1 : -1);
       let s = edge.length * (0.15 + 0.7 * ((i * 7) % 11) / 11);
       // keep >= 40 m between vehicles sharing the same street + direction
       for (let pass = 0; pass < 6; pass++) {
@@ -204,7 +205,7 @@ export class Traffic {
         edgeId: edge.id, s, dir, lane, lateral: lane,
         speed: rand(sMin, sMax), baseSpeed: rand(sMin, sMax),
         len: b.len, width: b.width, type, wheelR: b.wheelR, cone: null, idx: this.cars.length,
-        visTan: null,
+        visTan: null, uTurnCd: rand(10, 30),
       };
       car.visTan = world.travelFrame(car.edgeId, car.s, car.dir).tan;
 
@@ -229,6 +230,21 @@ export class Traffic {
     orientAlong(car.group, car.visTan, f.right, 0);
   }
 
+  // A U-turn sweeps across the oncoming lane, so it is only legal when that lane
+  // is clear near the junction: an oncoming car within 40 m of the node vetoes it.
+  _uTurnClear(car, nodeIndex) {
+    const world = this.world;
+    for (const o of this.cars) {
+      if (o === car || o.edgeId !== car.edgeId || o.dir === car.dir) continue;
+      const oe = world.edges[o.edgeId];
+      const oNode = o.dir > 0 ? oe.b : oe.a;
+      if (oNode !== nodeIndex) continue;
+      const d = o.dir > 0 ? oe.length - o.s : o.s;
+      if (d < 40) return false;
+    }
+    return true;
+  }
+
   // Move a car across a junction onto a new street, keeping its lateral offset
   // continuous in world space so it never jumps sideways through the intersection.
   _advanceEdge(car) {
@@ -239,6 +255,23 @@ export class Traffic {
     const edgeS = atEnd ? edge.length : 0;
     const over = atEnd ? car.s - edge.length : -car.s;
     const tan = world.travelFrame(car.edgeId, edgeS, car.dir).tan;
+
+    // street law: occasionally double back where the centre line is broken, i.e.
+    // at a junction — never inside the one-way roundabout ring and never on red.
+    const nodeObj = world.nodes[node];
+    if (!edge.oneWay && !nodeObj.ring && car.uTurnCd <= 0 &&
+        !world.isRed(edge.id, car.dir) && this._uTurnClear(car, node) &&
+        Math.random() < 0.14) {
+      car.dir = -car.dir;
+      car.s = car.dir > 0 ? over : edge.length - over;
+      // mirror the lateral parameter so the body stays put while it swings across
+      // to the correct left-hand lane of its new heading
+      car.lateral = -car.lateral;
+      car.speed = Math.min(car.speed, 8);
+      car.uTurnCd = rand(18, 36);
+      this.uTurns++;
+      return;
+    }
 
     const link = world.randomSuccessor(node, edge.id, tan);
     world.edgePoint(car.edgeId, edgeS, car.lateral, _v, car.dir);
@@ -259,6 +292,8 @@ export class Traffic {
     const cars = this.cars;
 
     for (const car of cars) {
+      if (car.uTurnCd > 0) car.uTurnCd -= dt;
+
       // --- car-following: nearest vehicle ahead on the same street + direction ---
       let target = car.baseSpeed;
       let respond = 1.2;
@@ -274,6 +309,18 @@ export class Traffic {
         const gap = best - (car.len + ahead.len) * 0.5;
         if (best < 14 + car.len) target = Math.min(target, ahead.speed * 0.95);
         if (gap < 3) target = 0;
+      }
+
+      // --- obey red lights: ease to a stop at the junction stop line ---
+      const sig = world.signalByApproach.get(car.edgeId + '|' + car.dir);
+      if (sig) {
+        const se = world.edges[car.edgeId];
+        const stopS = car.dir > 0 ? se.length - 18 : 18;
+        const d = (stopS - car.s) * car.dir;
+        if (d > 0 && d < 36 && world.isRed(car.edgeId, car.dir)) {
+          respond = 2.8;
+          target = d < 5 ? 0 : Math.min(target, Math.max(0, (d - 4) * 1.7));
+        }
       }
 
       // --- swept prediction: other cars (incl. crossing at junctions) + riders ---
